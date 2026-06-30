@@ -820,3 +820,46 @@ revoke all on public.user_mcp_connector_tools from anon, authenticated;
 revoke all on public.user_mcp_tool_audit_logs from anon, authenticated;
 revoke all on public.courtlistener_citation_index from anon, authenticated;
 revoke all on public.courtlistener_opinion_cluster_index from anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Document comparisons (deterministic redline / compare engine)
+-- ---------------------------------------------------------------------------
+--
+-- Project-scoped table backing the Document Compare feature. Stores metadata
+-- for a comparison between two document versions; the redline .docx and the
+-- diff JSON live in object storage under the comparisons/ key prefix and are
+-- referenced here by storage path. Access is enforced at the application layer
+-- via checkProjectAccess (the service-role backend client bypasses RLS), and
+-- direct client grants are revoked below, matching the backend-only lockdown
+-- pattern used for the other project-scoped tables.
+
+create table if not exists public.document_comparisons (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references public.projects(id) on delete cascade,
+  base_document_id uuid not null references public.documents(id) on delete cascade,
+  revised_document_id uuid not null references public.documents(id) on delete cascade,
+  created_by text,
+  status text not null default 'pending'
+    check (status = any (array[
+      'pending'::text,
+      'processing'::text,
+      'complete'::text,
+      'error'::text
+    ])),
+  redline_storage_path text,
+  diff_storage_path text,
+  error text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_document_comparisons_project
+  on public.document_comparisons(project_id);
+
+create index if not exists idx_document_comparisons_created_by
+  on public.document_comparisons(created_by);
+
+alter table public.document_comparisons enable row level security;
+
+-- Backend-owned table: revoke direct browser (anon/authenticated) access.
+revoke all on public.document_comparisons from anon, authenticated;

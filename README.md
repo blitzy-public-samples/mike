@@ -10,6 +10,7 @@ Website: [mikeoss.com](https://mikeoss.com)
 - `backend/` - Express API, Supabase access, document processing, and database schema
 - `backend/schema.sql` - Supabase schema for fresh databases
 - `backend/migrations/` - dated, incremental schema migrations; on an existing database, apply the files dated after the Mike version you deployed
+- `backend/src/compare/` - deterministic document compare / redline engine (tracked-changes .docx + diff JSON)
 
 ## Prerequisites
 
@@ -20,7 +21,7 @@ Website: [mikeoss.com](https://mikeoss.com)
 - A Cloudflare R2 bucket, MinIO bucket, or another S3-compatible bucket
 - At least one supported model provider API key: Anthropic, Google Gemini, or OpenAI
 - Optional: a CourtListener API token for case law lookup and citation verification
-- LibreOffice installed locally if you need DOC/DOCX to PDF conversion
+- LibreOffice installed locally if you need DOC/DOCX to PDF conversion, and to validate the rendered redline during a document comparison
 
 ## Database Setup
 
@@ -34,6 +35,8 @@ For a new Supabase database, open the Supabase SQL editor and run:
 The schema file is for fresh deployments and already includes the latest database shape.
 
 For an existing database, do not run the full schema file over production data. Instead, apply the incremental files in `backend/migrations/`: run the migrations dated **after** the version of Mike you currently have deployed, in filename order. Each file is named `YYYYMMDD_<name>.sql` (the date is also recorded in a comment at the top of the file) and is written to be safe to re-run, so when unsure you can re-apply the most recent migrations without harm.
+
+The Document Compare feature adds a single `document_comparisons` table. Fresh databases already include it via `backend/schema.sql`; existing deployments apply the new dated migration in `backend/migrations/` (named `YYYYMMDD_document_comparisons.sql`).
 
 ## Environment
 
@@ -99,6 +102,57 @@ Bulk data is optional. When `COURTLISTENER_BULK_DATA_ENABLED=true`, Mike first t
 
 If you do not import bulk data, leave `COURTLISTENER_BULK_DATA_ENABLED=false`; live CourtListener tools still work with a valid token, subject to CourtListener rate limits.
 
+## Document Compare
+
+Mike can produce a deterministic redline between two versions of a contract. Given a base `.docx` and a revised `.docx`, the compare engine computes their differences and returns two artifacts:
+
+- A downloadable Microsoft Word `.docx` redline carrying **native Word tracked changes** (`<w:ins>` / `<w:del>` with `w:author` / `w:date`) that opens cleanly in both Microsoft Word and Google Docs.
+- A structured **diff JSON** of ordered hunks that powers the in-app inline and side-by-side redline views.
+
+The diff is **deterministic**: there is no AI in the diff path, so identical inputs always produce byte-identical output.
+
+### Entry flows
+
+- **Compare two project documents.** Inside a project, open the new **Compare** tab, pick a base document and a revised document from the project's documents, run Compare, view the result **inline** and **side-by-side**, then download the tracked-changes `.docx`.
+- **Compare against a prior version.** Upload a new revised version of an existing document and compare it against the prior version.
+
+### Where it lives
+
+- Engine: `backend/src/compare/`
+- Routes: `backend/src/routes/comparisons.ts`
+- Persistence: `backend/src/lib/documentComparisons.ts`
+- Table: `document_comparisons` (fresh databases via `backend/schema.sql`; existing databases via the dated migration in `backend/migrations/`)
+- Frontend views: `frontend/src/app/components/compare/`, reached via the project **Compare** tab
+
+### Endpoints
+
+Compare routes follow Mike's no-`/api`-prefix convention, mount behind authentication, and enforce project access:
+
+- `POST /projects/:projectId/comparisons` - create and run a comparison; body `{ baseDocumentId, revisedDocumentId }`
+- `GET /comparisons/:id` - poll the comparison status and result
+- `GET /comparisons/:id/download` - download the redline `.docx`
+
+The redline `.docx` and `diff.json` are written to object storage under the `comparisons/` key prefix, reusing the existing R2/S3 bucket (no new storage layer).
+
+### Extending the compare engine
+
+The engine is isolated and composed of focused modules in `backend/src/compare/` - `parseDocx`, `normalize`, `alignParagraphs`, `wordDiff`, `emitTrackedChanges`, `diffJson`, `validate`, and `storageKeys` - orchestrated by `index.ts` (`runComparison`). It reuses existing libraries (`jszip`, `fast-xml-parser`, `fast-diff`) and helpers (`loadActiveVersion`, `downloadFile` / `uploadFile`, `docxToPdf`, `extractDocxBodyText`). Keep this module isolated: it must not be embedded in the assistant/chat, document-processing, tabular-review, or workflow code paths.
+
+Run the scoped engine tests (Vitest config scoped to `src/compare/**`):
+
+```bash
+npm run test:compare --prefix backend
+```
+
+### Suggested next tasks
+
+These are intentionally out of scope for V1 and are good follow-ups:
+
+- Move detection (currently rendered as a delete plus an insert).
+- Formatting-only change tracking (`<w:rPrChange>` / `<w:pPrChange>`).
+- An async worker/queue (V1 computes the diff synchronously within the create request, while the `status` column and `GET /comparisons/:id` polling keep the contract async-ready).
+- `.doc` / PDF convert-first support (V1 accepts `.docx` only).
+
 ## Install
 
 Install each app package:
@@ -143,10 +197,15 @@ Open `http://localhost:3000`.
 
 **DOC or DOCX conversion fails.** Install LibreOffice locally and restart the backend so document conversion commands are available on the process path.
 
+**A comparison fails or the redline does not render.** Ensure LibreOffice is installed and on the process path (the same prerequisite as DOC/DOCX to PDF conversion), then restart the backend.
+
+**Compare rejects a selected document.** V1 supports `.docx` only; legacy `.doc` and PDF inputs are rejected with a clear error, so convert them to `.docx` first. Pick the base and revised documents from the project's ready documents.
+
 ## Useful Checks
 
 ```bash
 npm run build --prefix backend
 npm run build --prefix frontend
 npm run lint --prefix frontend
+npm run test:compare --prefix backend
 ```
