@@ -335,13 +335,12 @@ describe("runComparison: column reconstruction invariant", () => {
 // Phase 5 -- Redline tracked-change markup per edit scenario (DIRECTIONAL)
 // ---------------------------------------------------------------------------
 //
-// Every edit pair must carry tracked markup (`w:ins` + `w:del` > 0). The
-// per-side checks are DIRECTIONAL ONLY: an insertion scenario must emit
-// `w:ins`, and a deletion scenario must emit `w:del`. We intentionally do NOT
-// assert the ABSENCE of the opposite tag: a single-paragraph edit
-// (word-insert / word-delete) is aligned as a whole-paragraph delete + insert,
-// so its redline legitimately carries BOTH `<w:ins>` and `<w:del>`. Asserting
-// e.g. `w:del === 0` for word-insert would contradict the real emitter.
+// Every edit pair must carry tracked markup (`w:ins` + `w:del` > 0). These
+// per-side checks are DIRECTIONAL: an insertion scenario must emit `w:ins`, and
+// a deletion scenario must emit `w:del`. The STRICTER word-level guarantees
+// (e.g. `w:del === 0` for a pure word-insert) are asserted separately in
+// "Phase 5b" below; keeping the two concerns apart makes the directional
+// baseline and the word-level requirement each read cleanly.
 
 describe("runComparison: redline tracked-change markup (edit pairs)", () => {
   it("every edit pair emits at least one tracked change", async () => {
@@ -369,6 +368,71 @@ describe("runComparison: redline tracked-change markup (edit pairs)", () => {
       const re = await parseDocx(getResult(pair).redlineBytes);
       expect(countTag(re.tree, "w:del")).toBeGreaterThan(0);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 5b -- Word-level modified-paragraph diff (AAP §0.6.2)
+// ---------------------------------------------------------------------------
+//
+// The AAP requires that an edit WITHIN a paragraph be tracked at WORD level:
+// paragraph alignment must pair a modified paragraph as a single matched pair
+// and word-diff it, NOT degrade it to a whole-paragraph delete + insert. These
+// tests pin that requirement end-to-end and would FAIL under the coarse
+// whole-paragraph behavior:
+//   - a pure word INSERT must emit ZERO `<w:del>` (only `<w:ins>`), and its diff
+//     must carry NO `del` hunk while retaining `equal` context words;
+//   - a pure word DELETE must emit ZERO `<w:ins>` (only `<w:del>`), likewise;
+//   - a MIXED edit must emit BOTH tags AND retain the shared words as `equal`
+//     hunks (a whole-paragraph replace would surface the shared words on BOTH
+//     the del and ins sides with no `equal` hunk between them).
+
+describe("runComparison: word-level modified-paragraph diff", () => {
+  it("word-insert is a PURE insertion: zero <w:del>, and no del hunk", async () => {
+    const { redlineBytes, diff } = getResult("word-insert");
+    const re = await parseDocx(redlineBytes);
+    // The single changed paragraph is word-diffed, so ONLY the added word is
+    // tracked -- there is nothing deleted.
+    expect(countTag(re.tree, "w:ins")).toBeGreaterThan(0);
+    expect(countTag(re.tree, "w:del")).toBe(0);
+    // Diff JSON mirrors that: an ins hunk, no del hunk.
+    expect(diff.hunks.some((h) => h.type === "ins")).toBe(true);
+    expect(diff.hunks.some((h) => h.type === "del")).toBe(false);
+    // And the unchanged words survive as `equal` context (proving word-level,
+    // not a whole-paragraph replace which would leave no equal hunk).
+    const equalText = joinByType(diff, "equal");
+    expect(equalText).toContain("quick");
+    expect(equalText).toContain("brown");
+  });
+
+  it("word-delete is a PURE deletion: zero <w:ins>, and no ins hunk", async () => {
+    const { redlineBytes, diff } = getResult("word-delete");
+    const re = await parseDocx(redlineBytes);
+    expect(countTag(re.tree, "w:del")).toBeGreaterThan(0);
+    expect(countTag(re.tree, "w:ins")).toBe(0);
+    expect(diff.hunks.some((h) => h.type === "del")).toBe(true);
+    expect(diff.hunks.some((h) => h.type === "ins")).toBe(false);
+    const equalText = joinByType(diff, "equal");
+    expect(equalText).toContain("quick");
+    expect(equalText).toContain("fox");
+  });
+
+  it("mixed-edit keeps the shared words as `equal` context (not a whole-paragraph replace)", async () => {
+    const { redlineBytes, diff } = getResult("mixed-edit");
+    const re = await parseDocx(redlineBytes);
+    // A within-paragraph edit tracked at word level emits BOTH tags...
+    expect(countTag(re.tree, "w:ins")).toBeGreaterThan(0);
+    expect(countTag(re.tree, "w:del")).toBeGreaterThan(0);
+    // ...AND retains the unchanged words as `equal` hunks. Under the coarse
+    // whole-paragraph behavior the shared words ("brown", "fox") would appear on
+    // BOTH the del and ins sides with NO equal hunk carrying them -- so this
+    // assertion specifically rejects the whole-paragraph delete+insert result.
+    const equalText = joinByType(diff, "equal");
+    expect(equalText).toContain("brown");
+    expect(equalText).toContain("fox");
+    // The edited words still land on their correct sides.
+    expect(joinByType(diff, "del")).toContain("quick");
+    expect(joinByType(diff, "ins")).toContain("slow");
   });
 });
 

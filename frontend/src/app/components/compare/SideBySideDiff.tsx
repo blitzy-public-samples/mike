@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { DiffJson } from "@/app/components/shared/types";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -68,7 +69,7 @@ export function SideBySideDiff({ diff }: Props) {
     if (!diff || hunks.length === 0) {
         return (
             <div className="flex flex-1 items-center justify-center p-6">
-                <p className="text-sm text-gray-400">
+                <p className="text-sm text-muted-foreground">
                     No differences to display.
                 </p>
             </div>
@@ -81,52 +82,64 @@ export function SideBySideDiff({ diff }: Props) {
     return (
         <div className="flex flex-1 flex-col overflow-hidden">
             {/* Change-navigation toolbar */}
-            <div className="flex items-center justify-between border-b border-gray-200 px-4 py-2">
-                <div className="flex items-center gap-4 text-xs text-gray-500">
+            <div className="flex items-center justify-between border-b border-border px-4 py-2">
+                {/* Legend. Deleted = destructive (red) token; inserted = brand
+                    azure token. Blue-for-inserted (rather than green) matches the
+                    design system's palette — which has no green/success token —
+                    and is more distinguishable for red-green color vision
+                    deficiency. Non-color cues (line-through / underline) are
+                    added on the diff spans below so state never relies on color
+                    alone. */}
+                <div className="flex items-center gap-4 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1.5">
-                        <span className="inline-block h-2 w-2 rounded-full bg-red-600" />
+                        <span className="inline-block h-2 w-2 rounded-full bg-destructive" />
                         Base
                     </span>
                     <span className="flex items-center gap-1.5">
-                        <span className="inline-block h-2 w-2 rounded-full bg-green-600" />
+                        <span className="inline-block h-2 w-2 rounded-full bg-blue-600" />
                         Revised
                     </span>
                 </div>
                 <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs text-muted-foreground">
                         {hasChanges
                             ? `Change ${safeChange + 1} of ${changedIndices.length}`
                             : "No changes"}
                     </span>
-                    <button
-                        type="button"
+                    {/* Shared Button primitive (icon-sm) for consistent focus /
+                        disabled / hover treatment with the rest of the app. */}
+                    <Button
+                        variant="outline"
+                        size="icon-sm"
                         onClick={() => goToChange(safeChange - 1)}
                         disabled={!hasChanges}
                         aria-label="Previous change"
-                        className="rounded-md border border-gray-200 p-1 text-gray-600 transition-colors hover:bg-gray-100 disabled:opacity-40"
                     >
                         <ChevronLeft className="h-4 w-4" />
-                    </button>
-                    <button
-                        type="button"
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="icon-sm"
                         onClick={() => goToChange(safeChange + 1)}
                         disabled={!hasChanges}
                         aria-label="Next change"
-                        className="rounded-md border border-gray-200 p-1 text-gray-600 transition-colors hover:bg-gray-100 disabled:opacity-40"
                     >
                         <ChevronRight className="h-4 w-4" />
-                    </button>
+                    </Button>
                 </div>
             </div>
 
-            {/* Two independently-scrollable columns */}
-            <div className="flex flex-1 min-h-0 divide-x divide-gray-200">
+            {/* Two independently-scrollable columns. Stacks vertically on small
+                screens (flex-col) and sits side-by-side from `md` up; the
+                divider follows suit (horizontal rule when stacked, vertical when
+                side-by-side). */}
+            <div className="flex flex-1 min-h-0 flex-col divide-y divide-border md:flex-row md:divide-x md:divide-y-0">
                 {/* Base column: equal + del */}
                 <div className="flex-1 min-w-0 overflow-auto px-4 py-3">
-                    <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">
+                    <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                         Base
                     </p>
-                    <div className="whitespace-pre-wrap text-sm leading-relaxed text-gray-800">
+                    <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
                         {hunks.map((h, i) => {
                             if (h.type === "ins") return null;
                             if (h.type === "del") {
@@ -137,9 +150,9 @@ export function SideBySideDiff({ diff }: Props) {
                                             hunkRefs.current[i] = el;
                                         }}
                                         className={cn(
-                                            "rounded-sm bg-red-50 text-red-600 line-through",
+                                            "rounded-sm bg-destructive/10 text-destructive line-through",
                                             currentHunkIdx === i &&
-                                                "ring-2 ring-red-300",
+                                                "ring-2 ring-destructive/50",
                                         )}
                                     >
                                         {h.text}
@@ -153,10 +166,10 @@ export function SideBySideDiff({ diff }: Props) {
 
                 {/* Revised column: equal + ins */}
                 <div className="flex-1 min-w-0 overflow-auto px-4 py-3">
-                    <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">
+                    <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                         Revised
                     </p>
-                    <div className="whitespace-pre-wrap text-sm leading-relaxed text-gray-800">
+                    <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
                         {hunks.map((h, i) => {
                             if (h.type === "del") return null;
                             if (h.type === "ins") {
@@ -167,9 +180,9 @@ export function SideBySideDiff({ diff }: Props) {
                                             hunkRefs.current[i] = el;
                                         }}
                                         className={cn(
-                                            "rounded-sm bg-green-50 text-green-600",
+                                            "rounded-sm bg-blue-50 text-blue-700 underline",
                                             currentHunkIdx === i &&
-                                                "ring-2 ring-green-300",
+                                                "ring-2 ring-blue-200",
                                         )}
                                     >
                                         {h.text}

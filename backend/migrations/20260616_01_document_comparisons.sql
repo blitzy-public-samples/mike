@@ -14,6 +14,13 @@ create table if not exists public.document_comparisons (
   project_id uuid not null references public.projects(id) on delete cascade,
   base_document_id uuid not null references public.documents(id) on delete cascade,
   revised_document_id uuid not null references public.documents(id) on delete cascade,
+  -- Optional resolved versions that were compared. Nullable so the pick-two-
+  -- documents flow (which compares each document's active version) and the
+  -- prior-version flow (two versions of the SAME document) both record exactly
+  -- which document_versions rows were diffed. on delete set null keeps a
+  -- comparison record intact if a referenced version is later hard-deleted.
+  base_version_id uuid references public.document_versions(id) on delete set null,
+  revised_version_id uuid references public.document_versions(id) on delete set null,
   created_by text,
   status text not null default 'pending'
     check (status = any (array[
@@ -28,6 +35,16 @@ create table if not exists public.document_comparisons (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Idempotent add for the version columns so re-running this single migration
+-- against a database where the table was created before these columns existed
+-- still converges to the intended shape.
+alter table public.document_comparisons
+  add column if not exists base_version_id uuid
+    references public.document_versions(id) on delete set null;
+alter table public.document_comparisons
+  add column if not exists revised_version_id uuid
+    references public.document_versions(id) on delete set null;
 
 create index if not exists idx_document_comparisons_project
   on public.document_comparisons(project_id);

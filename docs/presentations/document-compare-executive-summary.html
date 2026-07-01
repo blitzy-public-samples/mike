@@ -573,7 +573,7 @@ ENG->>DB: Mark status complete
 U->>API: Poll status
 API-->>U: Status + diff when ready
 U->>API: Download redline
-API-->>U: Stream .docx (self-contained)
+API-->>U: Send .docx (self-contained, buffered)
 </pre>
       </section>
 

@@ -5,8 +5,10 @@
  * `alignParagraphs(base, revised)` walks two accept-all-normalized paragraph
  * lists and emits an ordered list of {@link AlignOp} operations that classify
  * every paragraph as exactly one of:
- *   - `equal` -- a matched pair present in BOTH documents (identical normalized
- *     text; a downstream word-level diff refines these pairs);
+ *   - `equal` -- a matched pair present in BOTH documents. This is either an
+ *     IDENTICAL anchor (exact normalized text) or a MODIFIED pair discovered by
+ *     the stage-2 similarity refinement; a downstream word-level diff refines
+ *     each pair (a no-op for identical text);
  *   - `del`   -- a BASE-only paragraph (unmatched in REVISED): a deletion;
  *   - `ins`   -- a REVISED-only paragraph (unmatched in BASE): an insertion.
  *
@@ -14,8 +16,10 @@
  *   - identical documents collapse to all `equal`;
  *   - a single added / deleted paragraph yields one `ins` / one `del` with the
  *     surrounding matches preserved and correctly indexed;
- *   - a changed paragraph surfaces (at the paragraph level) as a `del`+`ins`
- *     pair (word-level refinement is `wordDiff`'s job, tested separately);
+ *   - a SIMILAR changed paragraph (word-token Dice >= threshold) is re-paired by
+ *     the refinement stage into a single MODIFIED `equal` pair, while a
+ *     DISSIMILAR change stays a `del`+`ins` pair (word-level refinement of a
+ *     modified pair is `wordDiff`'s job, tested separately);
  *   - the FIXED, deterministic tie-break for two fully-disjoint paragraphs
  *     (LCS length 0) produces a stable ordering;
  *   - empty / one-sided inputs, the per-type index-nullability invariants, and
@@ -197,6 +201,89 @@ describe("alignParagraphs: changed paragraph", () => {
     expect(dels[0].revisedIndex).toBeNull();
     expect(inses[0].baseIndex).toBeNull();
     expect(inses[0].revisedIndex).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 5b -- Modified-paragraph similarity refinement (stage 2)
+// ---------------------------------------------------------------------------
+//
+// The stage-2 refinement re-pairs a SIMILAR delete+insert (word-token Dice
+// coefficient >= threshold) into a single MODIFIED `equal` op, so the
+// orchestrator can word-diff it instead of emitting a whole-paragraph
+// delete + insert. These tests pin that behavior directly at the aligner level.
+
+describe("alignParagraphs: modified-paragraph similarity refinement", () => {
+  it("re-pairs a SIMILAR changed paragraph into a single modified `equal` op", () => {
+    // "the quick brown fox" vs "the quick red fox" share {the, quick, fox}
+    // (Dice = 2*3/(4+4) = 0.75 >= 0.5), so the change is a MODIFIED pair, not a
+    // whole-paragraph delete + insert.
+    const ops = alignParagraphs(
+      [p("the quick brown fox")],
+      [p("the quick red fox")],
+    );
+    expect(ops).toEqual([{ type: "equal", baseIndex: 0, revisedIndex: 0 }]);
+  });
+
+  it("re-pairs a modified paragraph BETWEEN stable anchors", () => {
+    const ops = alignParagraphs(
+      [p("Intro"), p("the quick brown fox"), p("Outro")],
+      [p("Intro"), p("the quick red fox"), p("Outro")],
+    );
+    // All three paragraphs are matched pairs: two identical anchors plus the
+    // modified middle paragraph. No del/ins survive.
+    expect(ops).toEqual([
+      { type: "equal", baseIndex: 0, revisedIndex: 0 },
+      { type: "equal", baseIndex: 1, revisedIndex: 1 },
+      { type: "equal", baseIndex: 2, revisedIndex: 2 },
+    ]);
+  });
+
+  it("pairs each of two adjacent similar paragraphs within one change region", () => {
+    const ops = alignParagraphs(
+      [p("the quick brown fox"), p("hello there world")],
+      [p("the quick red fox"), p("hello brave world")],
+    );
+    // Region has two deletes + two inserts; the secondary LCS pairs (0,0) and
+    // (1,1) by similarity (cross pairs share no tokens), yielding two modified
+    // `equal` ops in order.
+    expect(ops).toEqual([
+      { type: "equal", baseIndex: 0, revisedIndex: 0 },
+      { type: "equal", baseIndex: 1, revisedIndex: 1 },
+    ]);
+  });
+
+  it("keeps a DISSIMILAR change as del+ins (below the similarity threshold)", () => {
+    // Fully disjoint token sets (Dice = 0) must NOT be paired -- the refinement
+    // only rescues genuinely similar paragraphs.
+    const ops = alignParagraphs([p("alpha beta")], [p("gamma delta")]);
+    expect(ops.map((o) => o.type)).toEqual(["del", "ins"]);
+  });
+
+  it("pairs the similar paragraph and leaves the unrelated one as a pure insert", () => {
+    // One base paragraph, two revised: the first revised is a modified version
+    // of the base; the second is brand-new content.
+    const ops = alignParagraphs(
+      [p("the quick brown fox")],
+      [p("the quick red fox"), p("totally unrelated new sentence")],
+    );
+    expect(ops).toEqual([
+      { type: "equal", baseIndex: 0, revisedIndex: 0 },
+      { type: "ins", baseIndex: null, revisedIndex: 1 },
+    ]);
+  });
+
+  it("is deterministic for modified pairs across repeated calls", () => {
+    const base = [p("the quick brown fox"), p("second clause remains here")];
+    const revised = [p("the quick red fox"), p("second clause stays here")];
+    const a = alignParagraphs(base, revised);
+    const b = alignParagraphs(base, revised);
+    expect(a).toEqual(b);
+    // Both paragraphs are similar edits, so both are modified `equal` pairs.
+    expect(a).toEqual([
+      { type: "equal", baseIndex: 0, revisedIndex: 0 },
+      { type: "equal", baseIndex: 1, revisedIndex: 1 },
+    ]);
   });
 });
 

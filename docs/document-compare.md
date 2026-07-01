@@ -43,7 +43,7 @@ flowchart TD
     ENG["runComparison<br/>(isolated compare engine)"]
     UP["uploadFile<br/>(redline.docx + diff.json under comparisons/ prefix)"]
     DB[("document_comparisons<br/>(service-role client)")]
-    DL["self-contained stream<br/>(bypasses signed /download/:token)"]
+    DL["self-contained buffered download<br/>(bypasses signed /download/:token)"]
     LIBS["jszip + fast-xml-parser + fast-diff + extractDocxBodyText"]
     PDF["docxToPdf render smoke test"]
 
@@ -95,15 +95,22 @@ The pipeline runs in this fixed order:
    `<w:del>` content, producing clean "accepted-view" text so the diff runs
    against final text. This is reimplemented locally and does **not** import
    `docxTrackedChanges.ts` internals.
-3. **Align paragraphs** (`alignParagraphs.ts`) — deterministic LCS alignment
-   over normalized paragraph hashes/text (hashes via `node:crypto`), with a
-   fixed tie-break (favor deletion) so the result is stable. Unmatched base
-   paragraphs become deletions; unmatched revised paragraphs become insertions;
-   matched pairs emit `equal` / `del` / `ins` operations.
-4. **Word-level diff** (`wordDiff.ts`) — within matched paragraphs, run
-   `fast-diff` to produce typed segments. The **reconstruction invariant** holds:
-   `equal` + `del` segments reconstruct the base text; `equal` + `ins` segments
-   reconstruct the revised text.
+3. **Align paragraphs** (`alignParagraphs.ts`) — a deterministic **two-stage**
+   alignment. Stage 1 is an exact-anchor LCS over normalized paragraph
+   hashes/text (hashes via `node:crypto`), with a fixed tie-break (favor
+   deletion) so the result is stable. Stage 2 then walks each maximal
+   delete/insert change-region and runs a **secondary similarity LCS** that
+   pairs a deleted and an inserted paragraph as a single `equal` (modified) pair
+   when their word-token **Sørensen–Dice** similarity is `≥ 0.5` (using the same
+   deterministic tie-break, and bounded by a region-size guardrail). Unmatched
+   base paragraphs remain deletions; unmatched revised paragraphs remain
+   insertions; identical and modified pairs both emit `equal` operations.
+4. **Word-level diff** (`wordDiff.ts`) — within each matched paragraph pair whose
+   text differs (a *modified* pair from stage 2), run `fast-diff` to produce
+   typed word-level segments, so a single-paragraph edit becomes word-level
+   `<w:ins>` / `<w:del>` rather than a whole-paragraph delete + insert. The
+   **reconstruction invariant** holds: `equal` + `del` segments reconstruct the
+   base text; `equal` + `ins` segments reconstruct the revised text.
 5. **Emit tracked changes** (`emitTrackedChanges.ts`) — build the merged
    `word/document.xml` with native tracked changes and rezip a valid `.docx`
    (covered in [OOXML Tracked-Changes Model](#ooxml-tracked-changes-model)).
@@ -122,7 +129,7 @@ Each file under `backend/src/compare/` has a single responsibility:
 | `index.ts` | Orchestrator `runComparison`; wires the pipeline; `opts.date` is the sole time source. |
 | `parseDocx.ts` | `jszip` + `fast-xml-parser` (`preserveOrder`); ordered paragraphs/runs preserving `<w:rPr>`. Owns the shared read-side OOXML helpers; reuses only the public `extractDocxBodyText` from `../lib/docxTrackedChanges`. |
 | `normalize.ts` | Accept-all normalization (unwrap `<w:ins>`, drop `<w:del>`). |
-| `alignParagraphs.ts` | Deterministic LCS paragraph alignment; `node:crypto` hashing; fixed tie-break. |
+| `alignParagraphs.ts` | Deterministic two-stage paragraph alignment: exact-anchor LCS + secondary Sørensen–Dice similarity refinement that pairs modified paragraphs; `node:crypto` hashing; fixed tie-break. |
 | `wordDiff.ts` | `fast-diff` word-level diff within matched paragraphs. |
 | `emitTrackedChanges.ts` | Emits native `<w:ins>` / `<w:del>`; deterministic rezip. |
 | `diffJson.ts` | Diff-JSON contract types + `buildDiffJson`. |
@@ -289,16 +296,31 @@ Create and run a comparison. Request body:
 ```json
 {
   "baseDocumentId": "0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0",
-  "revisedDocumentId": "9e8d7c6b-5a49-3827-1605-f4e3d2c1b0a9"
+  "revisedDocumentId": "9e8d7c6b-5a49-3827-1605-f4e3d2c1b0a9",
+  "baseVersionId": null,
+  "revisedVersionId": null
 }
 ```
 
+`baseVersionId` and `revisedVersionId` are **optional**. Omit them (entry flow
+(a)) to compare each document's active version. Supply them (entry flow (b)) to
+compare two explicit versions; in that case the same `documentId` may appear on
+both sides **only when the two version ids differ**, which is how the
+"compare against a prior version" flow redlines two versions of a single
+document. The resolved version ids are persisted as `base_version_id` /
+`revised_version_id` on the comparison row.
+
 Behavior:
 
-1. Validates the body with `zod`.
-2. Runs `checkProjectAccess`, then `ensureDocAccess` on both the base and revised
-   documents.
-3. Resolves input bytes via `loadActiveVersion` + `downloadFile`.
+1. Validates the body with `zod` (rejecting a same-document request that does not
+   supply two differing version ids).
+2. Runs `checkProjectAccess`, then — for **each** selected document — binds the
+   document to the route project (**rejecting, masked as `404`, any document
+   whose `project_id` differs from `:projectId`**, before any byte download or
+   row insert) and runs `ensureDocAccess`.
+3. Resolves input bytes via `loadActiveVersion(documentId, db, versionId?)` +
+   `downloadFile` (the optional `versionId` selects an explicit version for
+   entry flow (b)).
 4. **Rejects non-`.docx` inputs with `400`** — no conversion is attempted.
 5. Inserts a `processing` row.
 6. Runs `runComparison` **synchronously** (there is no job queue in V1).
@@ -376,13 +398,18 @@ JSON under `diff`:
 
 ### `GET /comparisons/:id/download`
 
-A **self-contained, access-checked streaming** handler. It performs its own
-`checkProjectAccess` and streams the redline `.docx` directly, with a
+A **self-contained, access-checked** handler. It performs its own
+`checkProjectAccess` and, in V1, reads the redline `.docx` **fully buffered**
+through the existing `downloadFile` storage helper and returns it with
+`res.send(Buffer.from(raw))` — mirroring the existing (buffered) `downloads.ts`
+behavior rather than introducing a new streaming primitive. It sends a
 `Content-Disposition: attachment` header and the filename
 `comparison-redline.docx`. It deliberately **does not** route through the signed
 `/download/:token` mechanism, because that route resolves only
 `document_versions` rows and a `comparisons/`-prefixed key would `404` there.
-`backend/src/routes/downloads.ts` is left untouched. See the
+`backend/src/routes/downloads.ts` is left untouched. A true streaming storage
+helper (to avoid holding a large redline fully in memory) is a suggested next
+task. See the
 [decision log](./decisions/document-compare-decision-log.md) for the rationale.
 
 ### Rate Limiting

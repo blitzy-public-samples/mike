@@ -109,12 +109,12 @@ Mike can produce a deterministic redline between two versions of a contract. Giv
 - A downloadable Microsoft Word `.docx` redline carrying **native Word tracked changes** (`<w:ins>` / `<w:del>` with `w:author` / `w:date`) that opens cleanly in both Microsoft Word and Google Docs.
 - A structured **diff JSON** of ordered hunks that powers the in-app inline and side-by-side redline views.
 
-The diff is **deterministic**: there is no AI in the diff path, so identical inputs always produce byte-identical output.
+The diff is **deterministic**: there is no AI in the diff path, and the engine uses no randomness and no wall-clock time internally. Time and authorship enter only through the caller-supplied `opts` (`opts.author` → `w:author`, `opts.date` → `w:date`). The determinism guarantee is therefore precise: **identical inputs together with identical `opts` (`author` and `date`) always produce byte-identical output** — which the golden-file tests pin by passing a fixed `opts`. The live route sets `opts.author` to the requesting user and `opts.date` to the request time, so two runs of the same documents at different times differ only in the `w:date` attribute.
 
 ### Entry flows
 
-- **Compare two project documents.** Inside a project, open the new **Compare** tab, pick a base document and a revised document from the project's documents, run Compare, view the result **inline** and **side-by-side**, then download the tracked-changes `.docx`.
-- **Compare against a prior version.** Upload a new revised version of an existing document and compare it against the prior version.
+- **Compare two project documents.** Inside a project, open the new **Compare** tab (in *"two documents"* mode), pick a base document and a revised document from the project's documents, run Compare, view the result **inline** and **side-by-side**, then download the tracked-changes `.docx`.
+- **Compare against a prior version.** In the **Compare** tab, switch to *"two versions of one document"* mode, pick a single document, then choose a **base** and a **revised** version (the pickers default to the prior version → the current version). You can also **upload a new revised version inline** from this view; the newly uploaded version is selected as *revised* and the previous version as *base*. Run Compare to redline the two versions of that one document.
 
 ### Where it lives
 
@@ -128,9 +128,9 @@ The diff is **deterministic**: there is no AI in the diff path, so identical inp
 
 Compare routes follow Mike's no-`/api`-prefix convention, mount behind authentication, and enforce project access:
 
-- `POST /projects/:projectId/comparisons` - create and run a comparison; body `{ baseDocumentId, revisedDocumentId }`
+- `POST /projects/:projectId/comparisons` - create and run a comparison; body `{ baseDocumentId, revisedDocumentId, baseVersionId?, revisedVersionId? }`. Supply the optional `baseVersionId` / `revisedVersionId` to compare two explicit versions of a single document (entry flow (b)); the same document id is allowed on both sides only when the two version ids differ. Both selected documents must belong to the route project.
 - `GET /comparisons/:id` - poll the comparison status and result
-- `GET /comparisons/:id/download` - download the redline `.docx`
+- `GET /comparisons/:id/download` - download the redline `.docx` (V1 reads the object fully buffered through the existing storage helper and sends it, mirroring the generic download path)
 
 The redline `.docx` and `diff.json` are written to object storage under the `comparisons/` key prefix, reusing the existing R2/S3 bucket (no new storage layer).
 
@@ -152,6 +152,7 @@ These are intentionally out of scope for V1 and are good follow-ups:
 - Formatting-only change tracking (`<w:rPrChange>` / `<w:pPrChange>`).
 - An async worker/queue (V1 computes the diff synchronously within the create request, while the `status` column and `GET /comparisons/:id` polling keep the contract async-ready).
 - `.doc` / PDF convert-first support (V1 accepts `.docx` only).
+- True streaming downloads (V1 buffers the redline through the existing storage helper and sends it, mirroring the generic download path; a streaming storage helper would avoid holding large redlines fully in memory).
 
 ## Install
 

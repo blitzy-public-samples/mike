@@ -8,6 +8,7 @@ import type {
     AssistantEvent,
     Chat,
     Comparison,
+    CreateComparisonInput,
     ChatDetailOut,
     CitationAnnotation,
     Document,
@@ -1216,9 +1217,12 @@ export async function deleteWorkflowShare(
 }
 
 // Document compare: create a comparison (synchronous V1 compute server-side).
+// `payload` may optionally carry `baseVersionId` / `revisedVersionId` to compare
+// two explicit versions of the SAME document (flow (b)); when omitted the
+// backend uses each document's active version (flow (a)).
 export async function createComparison(
     projectId: string,
-    payload: { baseDocumentId: string; revisedDocumentId: string },
+    payload: CreateComparisonInput,
 ): Promise<Comparison> {
     return apiRequest<Comparison>(`/projects/${projectId}/comparisons`, {
         method: "POST",

@@ -838,6 +838,11 @@ create table if not exists public.document_comparisons (
   project_id uuid not null references public.projects(id) on delete cascade,
   base_document_id uuid not null references public.documents(id) on delete cascade,
   revised_document_id uuid not null references public.documents(id) on delete cascade,
+  -- Optional resolved versions that were compared (nullable): records exactly
+  -- which document_versions rows were diffed for both the pick-two-documents
+  -- flow and the prior-version flow (two versions of the same document).
+  base_version_id uuid references public.document_versions(id) on delete set null,
+  revised_version_id uuid references public.document_versions(id) on delete set null,
   created_by text,
   status text not null default 'pending'
     check (status = any (array[

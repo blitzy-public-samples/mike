@@ -20,6 +20,8 @@ export interface DocumentComparisonRow {
     project_id: string; // uuid, FK -> projects(id)
     base_document_id: string; // uuid, FK -> documents(id)
     revised_document_id: string; // uuid, FK -> documents(id)
+    base_version_id: string | null; // uuid, FK -> document_versions(id) (nullable)
+    revised_version_id: string | null; // uuid, FK -> document_versions(id) (nullable)
     created_by: string | null; // text (nullable)
     status: ComparisonStatus; // text, CHECK pending|processing|complete|error, default 'pending'
     redline_storage_path: string | null; // text (nullable until complete)
@@ -40,6 +42,10 @@ export async function insertComparison(
         project_id: string;
         base_document_id: string;
         revised_document_id: string;
+        // Optional resolved version ids (present for both flows; distinguish the
+        // two versions when base_document_id === revised_document_id).
+        base_version_id?: string | null;
+        revised_version_id?: string | null;
         created_by: string | null;
         status?: ComparisonStatus;
     },
@@ -50,6 +56,8 @@ export async function insertComparison(
             project_id: input.project_id,
             base_document_id: input.base_document_id,
             revised_document_id: input.revised_document_id,
+            base_version_id: input.base_version_id ?? null,
+            revised_version_id: input.revised_version_id ?? null,
             created_by: input.created_by,
             status: input.status ?? "processing",
         })

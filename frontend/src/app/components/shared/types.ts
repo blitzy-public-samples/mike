@@ -495,6 +495,13 @@ export interface Comparison {
   project_id: string;
   base_document_id: string;
   revised_document_id: string;
+  // Document compare: the specific document_versions rows that were compared.
+  // Null when the comparison used each document's active version (flow (a) —
+  // pick two documents). Non-null when the caller pinned explicit versions
+  // (flow (b) — compare two versions of one document, e.g. a newly-uploaded
+  // revised version against the prior version).
+  base_version_id: string | null;
+  revised_version_id: string | null;
   created_by: string | null;
   status: ComparisonStatus;
   redline_storage_path: string | null;
@@ -503,4 +510,15 @@ export interface Comparison {
   created_at: string;
   updated_at: string;
   diff?: DiffJson; // present on GET when status === "complete"
+}
+
+// Document compare: request body for creating a comparison. `baseVersionId` /
+// `revisedVersionId` are OPTIONAL — supply them to compare two explicit versions
+// of the SAME document (flow (b)); omit them to compare two documents at their
+// active versions (flow (a)). Mirrors the backend `createComparisonSchema`.
+export interface CreateComparisonInput {
+  baseDocumentId: string;
+  revisedDocumentId: string;
+  baseVersionId?: string;
+  revisedVersionId?: string;
 }
