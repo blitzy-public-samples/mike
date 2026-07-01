@@ -168,6 +168,60 @@ app.use((req, res, next) =>
   express.json({ limit: jsonLimitForPath(req.path) })(req, res, next),
 );
 
+// Document compare / API hardening: the dynamic express.json() parser above
+// rejects a malformed or oversized request body by delegating to Express'
+// DEFAULT error handler, which in development renders an HTML page containing
+// the body-parser stack trace and absolute filesystem paths — an information
+// disclosure defect (QA FINAL_ALT F5). body-parser tags the errors it raises
+// with a string `type` (e.g. "entity.parse.failed", "entity.too.large") and a
+// numeric client-error `status`; translate those into sanitized JSON so no
+// implementation details ever reach the client. This 4-arg handler sits between
+// the JSON parser and the router mounts: it catches body-parser failures (which
+// are raised BEFORE routing) while any non-body-parser error is forwarded
+// untouched via next(err), leaving every existing per-router error path
+// (e.g. the workflows router's own handler) unchanged.
+app.use(
+  (
+    err: unknown,
+    _req: express.Request,
+    res: express.Response,
+    next: express.NextFunction,
+  ) => {
+    if (res.headersSent) return next(err);
+    const parseError = err as
+      | { type?: unknown; status?: unknown; statusCode?: unknown }
+      | null;
+    const type =
+      typeof parseError?.type === "string" ? parseError.type : undefined;
+    const status =
+      typeof parseError?.status === "number"
+        ? parseError.status
+        : typeof parseError?.statusCode === "number"
+          ? parseError.statusCode
+          : undefined;
+    // Malformed JSON (the reported defect): body-parser raises a SyntaxError
+    // tagged `entity.parse.failed` with status 400.
+    if (type === "entity.parse.failed") {
+      return void res.status(400).json({ detail: "Malformed JSON body." });
+    }
+    // Other body-parser client errors (payload too large, unsupported
+    // charset/encoding, aborted request, ...) also carry a 4xx status and a
+    // `type`; return sanitized JSON instead of leaking a stack trace.
+    if (
+      type !== undefined &&
+      status !== undefined &&
+      status >= 400 &&
+      status < 500
+    ) {
+      return void res
+        .status(status)
+        .json({ detail: "Request body could not be processed." });
+    }
+    // Not a body-parser error — preserve existing behavior by deferring.
+    return next(err);
+  },
+);
+
 app.use("/chat", chatRouter);
 app.use("/projects", projectsRouter);
 app.use("/projects/:projectId/chat", projectChatRouter);
