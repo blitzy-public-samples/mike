@@ -261,6 +261,24 @@ function buildParagraph(pNode: XNode): ParsedParagraph {
 }
 
 // ---------------------------------------------------------------------------
+// Resource guardrails (deterministic fail-fast limits)
+// ---------------------------------------------------------------------------
+//
+// These fixed bounds cap the uncompressed main-part size and the paragraph/run
+// counts a single parse will accept; exceeding any bound throws a controlled
+// error.
+// (Thresholds and rationale: see docs/decisions/document-compare-decision-log.md.)
+
+/** Max uncompressed size (bytes) of `word/document.xml` accepted for parsing. */
+const MAX_DOCUMENT_XML_BYTES = 100 * 1024 * 1024;
+
+/** Max body paragraphs accepted from a single document. */
+const MAX_PARAGRAPHS = 50_000;
+
+/** Max total text runs accepted across all body paragraphs. */
+const MAX_RUNS = 500_000;
+
+// ---------------------------------------------------------------------------
 // Public entry point
 // ---------------------------------------------------------------------------
 
@@ -284,6 +302,15 @@ export async function parseDocx(bytes: Buffer): Promise<ParsedDocx> {
     const docXmlFile = getZipEntry(zip, "word/document.xml");
     if (!docXmlFile) throw new Error("document.xml missing from docx");
     const xml = await docXmlFile.async("string");
+
+    // Guardrail: bound the uncompressed main-part size before parsing it.
+    const xmlBytes = Buffer.byteLength(xml, "utf8");
+    if (xmlBytes > MAX_DOCUMENT_XML_BYTES) {
+        throw new Error(
+            `compare: word/document.xml size ${xmlBytes} bytes exceeds limit ` +
+                `(max=${MAX_DOCUMENT_XML_BYTES})`,
+        );
+    }
 
     const tree = createParser().parse(xml) as XNode[];
 
@@ -309,6 +336,22 @@ export async function parseDocx(bytes: Buffer): Promise<ParsedDocx> {
         }
     };
     collectParagraphs(body);
+
+    // Guardrail: bound paragraph and run counts before the document flows into
+    // the O(n*m) alignment.
+    if (paragraphs.length > MAX_PARAGRAPHS) {
+        throw new Error(
+            `compare: paragraph count ${paragraphs.length} exceeds limit ` +
+                `(max=${MAX_PARAGRAPHS})`,
+        );
+    }
+    let totalRuns = 0;
+    for (const paragraph of paragraphs) totalRuns += paragraph.runs.length;
+    if (totalRuns > MAX_RUNS) {
+        throw new Error(
+            `compare: run count ${totalRuns} exceeds limit (max=${MAX_RUNS})`,
+        );
+    }
 
     // Whole-document plaintext via the single public helper we reuse. Kept for
     // sanity/debugging; the alignment path operates on `paragraph.text`.

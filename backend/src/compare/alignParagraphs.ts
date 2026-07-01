@@ -21,9 +21,10 @@
  * Determinism (AAP 0.8.1) is the hard requirement: the function is pure, reads
  * only its inputs, performs no I/O, and uses no clock, randomness, or
  * iteration-order-dependent container, so identical inputs always yield an
- * identical `AlignOp[]`. Behavior note: the LCS backtrack resolves ties toward
- * consuming a BASE paragraph (the `>=` in the backtrack comparison), which fixes
- * the traversal deterministically.
+ * identical `AlignOp[]`. Behavior note: on tied LCS values the backtrack favors
+ * the insertion step, which -- because ops are collected backward then reversed
+ * -- yields deletion-before-insertion in document order for changed/disjoint
+ * paragraphs, fixing the traversal deterministically.
  *
  * The ops are returned in document (top-to-bottom) order so the downstream
  * tracked-changes emitter and the diff-JSON builder can walk the same ordered
@@ -115,6 +116,23 @@ function hashParagraphText(text: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Resource guardrails (deterministic fail-fast limits)
+// ---------------------------------------------------------------------------
+//
+// The alignment allocates an O(n*m) LCS table; these fixed bounds are checked
+// BEFORE that allocation and throw a controlled error when exceeded.
+// (Thresholds and rationale: see docs/decisions/document-compare-decision-log.md.)
+
+/** Max body paragraphs accepted per document (per side) before alignment. */
+const MAX_ALIGN_PARAGRAPHS_PER_DOC = 50_000;
+
+/**
+ * Max LCS dynamic-programming cells -- `(base.length + 1) * (revised.length + 1)`
+ * -- allocated for a single alignment, bounding the DP table's memory footprint.
+ */
+const MAX_LCS_CELLS = 25_000_000;
+
+// ---------------------------------------------------------------------------
 // Deterministic LCS alignment
 // ---------------------------------------------------------------------------
 
@@ -128,11 +146,14 @@ function hashParagraphText(text: string): string {
  * 2. Fill the standard LCS dynamic-programming table `dp`, where `dp[i][j]` is
  *    the LCS length of `base[0..i-1]` and `revised[0..j-1]`.
  * 3. Backtrack from `(n, m)` to `(0, 0)`: a matched pair moves diagonally and
- *    emits `equal`; otherwise, when `dp[i-1][j] >= dp[i][j-1]` a BASE paragraph
- *    is consumed as a `del`, else a REVISED paragraph is consumed as an `ins`.
- *    The `>=` fixes the tie-break so the traversal is deterministic. Once one
- *    side is exhausted, the remaining BASE paragraphs are `del`s and the
- *    remaining REVISED paragraphs are `ins`s.
+ *    emits `equal`; otherwise, when `dp[i-1][j] > dp[i][j-1]` a BASE paragraph
+ *    is consumed as a `del`, else (including on tied DP values) a REVISED
+ *    paragraph is consumed as an `ins`. Because ops are collected backward and
+ *    reversed in step 4, sending ties to the `ins` step yields
+ *    deletion-before-insertion in document order -- the required ordering for
+ *    changed/disjoint paragraphs -- deterministically. Once one side is
+ *    exhausted, the remaining BASE paragraphs are `del`s and the remaining
+ *    REVISED paragraphs are `ins`s.
  * 4. Backtracking collects ops in reverse; the list is reversed once so it is
  *    returned in document (top-to-bottom) order.
  *
@@ -158,6 +179,14 @@ export function alignParagraphs(
   const n = base.length;
   const m = revised.length;
 
+  // Guardrail: reject pathological paragraph counts before doing any work.
+  if (n > MAX_ALIGN_PARAGRAPHS_PER_DOC || m > MAX_ALIGN_PARAGRAPHS_PER_DOC) {
+    throw new Error(
+      `compare: paragraph count exceeds limit (base=${n}, revised=${m}, ` +
+        `max=${MAX_ALIGN_PARAGRAPHS_PER_DOC} per document)`,
+    );
+  }
+
   // Per-paragraph SHA-1 digests: a cheap, deterministic equality pre-filter.
   const baseKeys = base.map((paragraph) => hashParagraphText(paragraph.text));
   const revisedKeys = revised.map((paragraph) =>
@@ -169,6 +198,15 @@ export function alignParagraphs(
   // assert a false match. Correctness therefore rests on text, not the hash.
   const equalAt = (i: number, j: number): boolean =>
     baseKeys[i] === revisedKeys[j] && base[i].text === revised[j].text;
+
+  // Guardrail: bound the LCS table size before the Array.from allocation below.
+  const lcsCells = (n + 1) * (m + 1);
+  if (lcsCells > MAX_LCS_CELLS) {
+    throw new Error(
+      `compare: alignment matrix ${n + 1}x${m + 1} (${lcsCells} cells) ` +
+        `exceeds limit (max=${MAX_LCS_CELLS})`,
+    );
+  }
 
   // Standard LCS DP table (prefix formulation): dp[i][j] = LCS length of
   // base[0..i-1] and revised[0..j-1]. Row 0 and column 0 model empty prefixes
@@ -195,13 +233,16 @@ export function alignParagraphs(
       reversedOps.push(equalOp(i - 1, j - 1));
       i -= 1;
       j -= 1;
-    } else if (dp[i - 1][j] >= dp[i][j - 1]) {
-      // Fixed tie-break: on equal DP values, consume a BASE paragraph (a
-      // deletion). The `>=` is what makes the backtrack deterministic.
+    } else if (dp[i - 1][j] > dp[i][j - 1]) {
+      // Deletion step. The strict `>` sends tied DP values to the insertion
+      // branch below; because the backtrack runs backward and the ops are
+      // reversed once at the end, consuming the insertion first on a tie makes
+      // the deletion precede the insertion in final document order
+      // (deletion-before-insertion for changed/disjoint paragraphs).
       reversedOps.push(delOp(i - 1));
       i -= 1;
     } else {
-      // Otherwise consume a REVISED paragraph (an insertion).
+      // Insertion step -- also the tie case, per the strict `>` above.
       reversedOps.push(insOp(j - 1));
       j -= 1;
     }

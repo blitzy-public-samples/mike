@@ -71,16 +71,30 @@ export function RedlineDocxView({ comparisonId }: Props) {
         <div className="relative flex flex-col flex-1 overflow-hidden">
             <div
                 ref={scrollRef}
-                className="flex-1 overflow-auto bg-gray-100 px-5 pt-5 pb-3"
+                className="flex-1 overflow-auto bg-muted px-5 pt-5 pb-3"
             >
                 {loading && (
-                    <div className="flex h-full items-center justify-center">
-                        <Loader2 className="h-7 w-7 animate-spin text-gray-400" />
+                    // role="status" (aria-live="polite" by default) announces the
+                    // loading state; the spinner icon is decorative (aria-hidden).
+                    <div
+                        role="status"
+                        className="flex h-full items-center justify-center"
+                    >
+                        <Loader2
+                            className="h-7 w-7 animate-spin text-muted-foreground"
+                            aria-hidden="true"
+                        />
+                        <span className="sr-only">Loading redline document…</span>
                     </div>
                 )}
                 {error && !loading && (
-                    <div className="flex h-full items-center justify-center">
-                        <p className="text-sm text-red-500">{error}</p>
+                    // role="alert" (aria-live="assertive" by default) announces the
+                    // fetch/render failure to assistive technology.
+                    <div
+                        role="alert"
+                        className="flex h-full items-center justify-center"
+                    >
+                        <p className="text-sm text-destructive">{error}</p>
                     </div>
                 )}
                 <div ref={containerRef} className="docx-view-container" />

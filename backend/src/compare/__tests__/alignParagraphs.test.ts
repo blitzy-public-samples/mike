@@ -205,22 +205,24 @@ describe("alignParagraphs: changed paragraph", () => {
 // ---------------------------------------------------------------------------
 
 describe("alignParagraphs: deterministic tie-break (disjoint paragraphs)", () => {
-  it("resolves two disjoint single paragraphs to a stable [ins, del] order", () => {
+  it("resolves two disjoint single paragraphs to a stable [del, ins] order", () => {
     // A single base paragraph "A" and a single revised paragraph "B" share no
     // common subsequence (LCS length 0), so the pair is emitted as one deletion
     // of the base paragraph plus one insertion of the revised paragraph.
     const ops = alignParagraphs([p("A")], [p("B")]);
 
-    // The ordering is FIXED and deterministic. The LCS backtrack's `>=`
-    // tie-break consumes the BASE paragraph (the deletion) first while walking
-    // the DP table backward from the document end; after the single reverse into
-    // document order, the deletion therefore lands AFTER the insertion, yielding
-    // exactly [ins, del]. Asserting this precise sequence proves the tie-break is
-    // resolved deterministically (never nondeterministically, and never the
-    // opposite permutation).
-    expect(ops.map((o) => o.type)).toEqual(["ins", "del"]);
-    expect(ops[0]).toEqual({ type: "ins", baseIndex: null, revisedIndex: 0 });
-    expect(ops[1]).toEqual({ type: "del", baseIndex: 0, revisedIndex: null });
+    // The ordering is FIXED and deterministic. On tied DP values the backtrack
+    // (which walks the table backward from the document end) takes the insertion
+    // step first; after the single reverse into document order the deletion
+    // therefore lands BEFORE the insertion, yielding exactly [del, ins]. This is
+    // the required deletion-before-insertion ordering, so a changed/disjoint
+    // paragraph never renders the revised text ahead of the base deletion.
+    // Asserting this precise sequence proves the tie-break is resolved
+    // deterministically (never nondeterministically, and never the opposite
+    // permutation).
+    expect(ops.map((o) => o.type)).toEqual(["del", "ins"]);
+    expect(ops[0]).toEqual({ type: "del", baseIndex: 0, revisedIndex: null });
+    expect(ops[1]).toEqual({ type: "ins", baseIndex: null, revisedIndex: 0 });
   });
 });
 
@@ -288,3 +290,40 @@ describe("alignParagraphs: structural invariants and determinism", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Phase 8 -- Deterministic resource guardrails (fail-fast on oversized input)
+// ---------------------------------------------------------------------------
+//
+// The alignment allocates an O(n*m) LCS table, so `alignParagraphs` enforces
+// fixed, deterministic limits BEFORE that allocation and throws a controlled
+// error when they are exceeded (rather than risking an out-of-memory crash on a
+// large or adversarial document). These tests pin that fail-fast behavior and
+// confirm ordinary contract-sized input is unaffected.
+
+describe("alignParagraphs: resource guardrails", () => {
+  it("throws a controlled error when a document exceeds the paragraph limit", () => {
+    // One side just over the 50,000-paragraph cap. The guard fires before any
+    // hashing or DP allocation, so this stays fast and never risks OOM.
+    const tooMany = Array.from({ length: 50_001 }, (_, k) => p(`p${k}`));
+    expect(() => alignParagraphs(tooMany, [p("A")])).toThrow(/limit/);
+  });
+
+  it("throws a controlled error when the LCS matrix would exceed the cell limit", () => {
+    // 5001 x 5001 paragraphs is under the per-document paragraph cap, but its
+    // (n+1)*(m+1) DP table exceeds the 25,000,000-cell limit -- so the guard
+    // fires BEFORE the O(n*m) table is allocated.
+    const base = Array.from({ length: 5001 }, (_, k) => p(`b${k}`));
+    const revised = Array.from({ length: 5001 }, (_, k) => p(`r${k}`));
+    expect(() => alignParagraphs(base, revised)).toThrow(/limit/);
+  });
+
+  it("does not trip the guardrails for ordinary contract-sized input", () => {
+    // A few hundred paragraphs per side is well within every limit and aligns
+    // normally (no throw).
+    const base = Array.from({ length: 300 }, (_, k) => p(`s${k}`));
+    const revised = Array.from({ length: 300 }, (_, k) => p(`s${k}`));
+    expect(() => alignParagraphs(base, revised)).not.toThrow();
+  });
+});
+

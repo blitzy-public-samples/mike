@@ -131,6 +131,13 @@ function pushSegment(
   segments.push({ type, text });
 }
 
+// ---------------------------------------------------------------------------
+// Resource guardrail (deterministic fail-fast limit on input size)
+// ---------------------------------------------------------------------------
+
+/** Max accepted size (bytes) of a single input `.docx` buffer. */
+const MAX_INPUT_DOCX_BYTES = 50 * 1024 * 1024;
+
 /**
  * Run the deterministic compare pipeline end-to-end.
  *
@@ -166,13 +173,24 @@ export async function runComparison(
   revisedBytes: Buffer,
   opts: { author: string; date: string },
 ): Promise<{ redlineBytes: Buffer; diff: DiffJson }> {
-  // A blank `date` would silently defeat byte-determinism (the emitter derives
-  // the output zip's entry timestamps from it via `new Date(date)`), so reject
-  // it at this public boundary with a clear message rather than emitting a
-  // non-reproducible redline. `author` may legitimately be empty.
+  // Reject an empty `date` at this public boundary: the emitter derives the
+  // output zip's entry timestamps from it (via `new Date(date)`), so the caller
+  // must supply it. `author` may legitimately be empty.
+  // (Determinism rationale: see docs/decisions/document-compare-decision-log.md.)
   if (opts.date.length === 0) {
     throw new Error(
       "runComparison: opts.date must be a non-empty ISO-8601 date string",
+    );
+  }
+
+  // Guardrail: reject oversized inputs before any parsing/allocation.
+  if (
+    baseBytes.length > MAX_INPUT_DOCX_BYTES ||
+    revisedBytes.length > MAX_INPUT_DOCX_BYTES
+  ) {
+    throw new Error(
+      `compare: input .docx size exceeds limit (base=${baseBytes.length}, ` +
+        `revised=${revisedBytes.length}, max=${MAX_INPUT_DOCX_BYTES} bytes)`,
     );
   }
 
