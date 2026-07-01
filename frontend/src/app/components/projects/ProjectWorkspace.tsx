@@ -92,13 +92,18 @@ function activeSectionFromSegments(
 ): ProjectWorkspaceSection {
     if (segments[0] === "assistant") return "assistant";
     if (segments[0] === "tabular-reviews") return "reviews";
+    if (segments[0] === "compare") return "compare"; // Document compare section
     return "documents";
 }
 
 function shouldShowWorkspaceShell(segments: string[]) {
     if (segments.length === 0) return true;
     if (segments.length !== 1) return false;
-    return segments[0] === "assistant" || segments[0] === "tabular-reviews";
+    return (
+        segments[0] === "assistant" ||
+        segments[0] === "tabular-reviews" ||
+        segments[0] === "compare" // Document compare section
+    );
 }
 
 export function ProjectWorkspaceProvider({
@@ -113,7 +118,9 @@ export function ProjectWorkspaceProvider({
     const [projectLoading, setProjectLoading] = useState(true);
     const [searchBySection, setSearchBySection] = useState<
         Record<ProjectWorkspaceSection, string>
-    >({ documents: "", assistant: "", reviews: "" });
+        // Document compare: include the "compare" key so this record stays
+        // exhaustive for the ProjectWorkspaceSection union.
+    >({ documents: "", assistant: "", reviews: "", compare: "" });
     const [projectChats, setProjectChats] = useState<Chat[] | null>(null);
     const [projectReviews, setProjectReviews] = useState<
         TabularReview[] | null
@@ -536,6 +543,7 @@ export function ProjectSectionToolbar({
                 { id: "documents", label: "Documents" },
                 { id: "assistant", label: "Assistant Chats" },
                 { id: "reviews", label: "Tabular Reviews" },
+                { id: "compare", label: "Compare" }, // Document compare tab
             ]}
             active={activeSection}
             onChange={(next) => {
@@ -544,7 +552,9 @@ export function ProjectSectionToolbar({
                         ? `/projects/${projectId}`
                         : next === "assistant"
                           ? `/projects/${projectId}/assistant`
-                          : `/projects/${projectId}/tabular-reviews`;
+                          : next === "compare"
+                            ? `/projects/${projectId}/compare` // Document compare tab route
+                            : `/projects/${projectId}/tabular-reviews`;
                 router.push(href);
             }}
             actions={actions}

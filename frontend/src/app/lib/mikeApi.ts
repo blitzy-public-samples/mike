@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import type {
     AssistantEvent,
     Chat,
+    Comparison,
     ChatDetailOut,
     CitationAnnotation,
     Document,
@@ -1212,4 +1213,28 @@ export async function deleteWorkflowShare(
     await apiRequest(`/workflows/${workflowId}/shares/${shareId}`, {
         method: "DELETE",
     });
+}
+
+// Document compare: create a comparison (synchronous V1 compute server-side).
+export async function createComparison(
+    projectId: string,
+    payload: { baseDocumentId: string; revisedDocumentId: string },
+): Promise<Comparison> {
+    return apiRequest<Comparison>(`/projects/${projectId}/comparisons`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+}
+
+// Document compare: poll comparison status/result.
+export async function getComparison(id: string): Promise<Comparison> {
+    return apiRequest<Comparison>(`/comparisons/${id}`);
+}
+
+// Document compare: fetch the redline .docx (self-contained download route).
+export async function downloadComparisonRedline(
+    id: string,
+): Promise<{ blob: Blob; filename: string | null }> {
+    return apiBlobRequest(`/comparisons/${id}/download`);
 }
