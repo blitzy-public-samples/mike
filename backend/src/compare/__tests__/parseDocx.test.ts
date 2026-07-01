@@ -57,9 +57,9 @@ const load = (name: string): Buffer => readFileSync(join(fixturesDir, name));
 // literals mirror the fixtures/ folder spec and anchor the ordered-extraction
 // and determinism assertions below.
 const IDENTICAL_BASE_PARAGRAPHS: readonly string[] = [
-    "The agreement is effective today.",
-    "Each party shall perform its duties.",
-    "This is the final clause.",
+  "The agreement is effective today.",
+  "Each party shall perform its duties.",
+  "This is the final clause.",
 ];
 
 // The CLEAN `formatted.docx` fixture is a single paragraph whose runs are, in
@@ -72,39 +72,39 @@ const FORMATTED_FIRST_PARAGRAPH = "Bold and italic text.";
 // ---------------------------------------------------------------------------
 
 describe("parseDocx: ordered paragraph/run extraction (clean doc)", () => {
-    it("extracts body paragraphs in document order with exact text", async () => {
-        const doc = await parseDocx(load("identical.base.docx"));
+  it("extracts body paragraphs in document order with exact text", async () => {
+    const doc = await parseDocx(load("identical.base.docx"));
 
-        expect(Array.isArray(doc.paragraphs)).toBe(true);
-        expect(doc.paragraphs.length).toBe(3);
-        expect(doc.paragraphs.map((p) => p.text)).toEqual([
-            ...IDENTICAL_BASE_PARAGRAPHS,
-        ]);
-    });
+    expect(Array.isArray(doc.paragraphs)).toBe(true);
+    expect(doc.paragraphs.length).toBe(3);
+    expect(doc.paragraphs.map((p) => p.text)).toEqual([
+      ...IDENTICAL_BASE_PARAGRAPHS,
+    ]);
+  });
 
-    it("returns a well-formed shape for every paragraph", async () => {
-        const doc = await parseDocx(load("identical.base.docx"));
+  it("returns a well-formed shape for every paragraph", async () => {
+    const doc = await parseDocx(load("identical.base.docx"));
 
-        for (const p of doc.paragraphs) {
-            expect(typeof p.text).toBe("string");
-            expect(Array.isArray(p.runs)).toBe(true);
-            // The underlying `<w:p>` node is retained (by reference) for the
-            // downstream tracked-changes emitter to rewrite.
-            expect(p.node && typeof p.node === "object").toBe(true);
-        }
-    });
+    for (const p of doc.paragraphs) {
+      expect(typeof p.text).toBe("string");
+      expect(Array.isArray(p.runs)).toBe(true);
+      // The underlying `<w:p>` node is retained (by reference) for the
+      // downstream tracked-changes emitter to rewrite.
+      expect(p.node && typeof p.node === "object").toBe(true);
+    }
+  });
 
-    it("keeps concatenated run text equal to paragraph text (no ins/del wrappers)", async () => {
-        const doc = await parseDocx(load("identical.base.docx"));
+  it("keeps concatenated run text equal to paragraph text (no ins/del wrappers)", async () => {
+    const doc = await parseDocx(load("identical.base.docx"));
 
-        // Holds for a CLEAN doc: every run's text is a direct `<w:r>`/`<w:t>`
-        // contribution, so joining the run texts reconstructs the paragraph
-        // text exactly. (This would NOT hold for a doc with pre-existing
-        // `<w:ins>`/`<w:del>`, which `parseDocx` purposely leaves un-flattened.)
-        for (const p of doc.paragraphs) {
-            expect(p.runs.map((r) => r.text).join("")).toBe(p.text);
-        }
-    });
+    // Holds for a CLEAN doc: every run's text is a direct `<w:r>`/`<w:t>`
+    // contribution, so joining the run texts reconstructs the paragraph
+    // text exactly. (This would NOT hold for a doc with pre-existing
+    // `<w:ins>`/`<w:del>`, which `parseDocx` purposely leaves un-flattened.)
+    for (const p of doc.paragraphs) {
+      expect(p.runs.map((r) => r.text).join("")).toBe(p.text);
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -112,16 +112,16 @@ describe("parseDocx: ordered paragraph/run extraction (clean doc)", () => {
 // ---------------------------------------------------------------------------
 
 describe("parseDocx: bodyPlainText join (clean doc only)", () => {
-    it("newline-joins the body paragraph texts", async () => {
-        const doc = await parseDocx(load("identical.base.docx"));
+  it("newline-joins the body paragraph texts", async () => {
+    const doc = await parseDocx(load("identical.base.docx"));
 
-        // `bodyPlainText` comes from `extractDocxBodyText`, which `\n`-joins the
-        // flattened body paragraphs. On a CLEAN doc the flattened text equals
-        // each paragraph's run-concatenated text, so the two agree exactly.
-        expect(doc.bodyPlainText).toBe(
-            doc.paragraphs.map((p) => p.text).join("\n"),
-        );
-    });
+    // `bodyPlainText` comes from `extractDocxBodyText`, which `\n`-joins the
+    // flattened body paragraphs. On a CLEAN doc the flattened text equals
+    // each paragraph's run-concatenated text, so the two agree exactly.
+    expect(doc.bodyPlainText).toBe(
+      doc.paragraphs.map((p) => p.text).join("\n"),
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -129,44 +129,44 @@ describe("parseDocx: bodyPlainText join (clean doc only)", () => {
 // ---------------------------------------------------------------------------
 
 describe("parseDocx: <w:rPr> preservation (formatted doc)", () => {
-    it("carries the run properties node on at least one run", async () => {
-        const fdoc = await parseDocx(load("formatted.docx"));
+  it("carries the run properties node on at least one run", async () => {
+    const fdoc = await parseDocx(load("formatted.docx"));
 
-        const runsWithRpr = fdoc.paragraphs
-            .flatMap((p) => p.runs)
-            .filter((r) => r.rPr !== null);
+    const runsWithRpr = fdoc.paragraphs
+      .flatMap((p) => p.runs)
+      .filter((r) => r.rPr !== null);
 
-        // At least one run must carry preserved properties -- the emitter later
-        // clones this node onto tracked-change runs to keep formatting fidelity.
-        expect(runsWithRpr.length).toBeGreaterThan(0);
+    // At least one run must carry preserved properties -- the emitter later
+    // clones this node onto tracked-change runs to keep formatting fidelity.
+    expect(runsWithRpr.length).toBeGreaterThan(0);
 
-        // The preserved reference is the `<w:rPr>` element itself...
-        expect(elName(runsWithRpr[0].rPr)).toBe("w:rPr");
+    // The preserved reference is the `<w:rPr>` element itself...
+    expect(elName(runsWithRpr[0].rPr)).toBe("w:rPr");
 
-        // ...and it retains at least one recognizable formatting child. Presence
-        // of any formatting element is sufficient; exact styling is not asserted.
-        const kids = elChildren(runsWithRpr[0].rPr).map(elName);
-        expect(
-            kids.some(
-                (n) =>
-                    n === "w:b" ||
-                    n === "w:i" ||
-                    n === "w:rFonts" ||
-                    n === "w:sz",
-            ),
-        ).toBe(true);
-    });
+    // ...and it retains at least one recognizable formatting child. Presence
+    // of any formatting element is sufficient; exact styling is not asserted.
+    const kids = elChildren(runsWithRpr[0].rPr).map(elName);
+    expect(
+      kids.some(
+        (n) =>
+          n === "w:b" ||
+          n === "w:i" ||
+          n === "w:rFonts" ||
+          n === "w:sz",
+      ),
+    ).toBe(true);
+  });
 
-    it("still concatenates runs to the known paragraph text", async () => {
-        const fdoc = await parseDocx(load("formatted.docx"));
+  it("still concatenates runs to the known paragraph text", async () => {
+    const fdoc = await parseDocx(load("formatted.docx"));
 
-        // The fixture is CLEAN, so run concatenation reconstructs the paragraph
-        // text regardless of the intervening `<w:rPr>` boundaries.
-        expect(fdoc.paragraphs[0].text).toBe(FORMATTED_FIRST_PARAGRAPH);
-        expect(
-            fdoc.paragraphs[0].runs.map((r) => r.text).join(""),
-        ).toBe(FORMATTED_FIRST_PARAGRAPH);
-    });
+    // The fixture is CLEAN, so run concatenation reconstructs the paragraph
+    // text regardless of the intervening `<w:rPr>` boundaries.
+    expect(fdoc.paragraphs[0].text).toBe(FORMATTED_FIRST_PARAGRAPH);
+    expect(
+      fdoc.paragraphs[0].runs.map((r) => r.text).join(""),
+    ).toBe(FORMATTED_FIRST_PARAGRAPH);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -174,25 +174,25 @@ describe("parseDocx: <w:rPr> preservation (formatted doc)", () => {
 // ---------------------------------------------------------------------------
 
 describe("parseDocx: structural fields and fatal-parse behavior", () => {
-    it("returns the raw preserve-order tree and the loaded archive", async () => {
-        const doc = await parseDocx(load("identical.base.docx"));
+  it("returns the raw preserve-order tree and the loaded archive", async () => {
+    const doc = await parseDocx(load("identical.base.docx"));
 
-        // The full parsed tree is handed to the emitter to rebuild the doc.
-        expect(Array.isArray(doc.tree)).toBe(true);
-        expect(doc.tree.length).toBeGreaterThan(0);
+    // The full parsed tree is handed to the emitter to rebuild the doc.
+    expect(Array.isArray(doc.tree)).toBe(true);
+    expect(doc.tree.length).toBeGreaterThan(0);
 
-        // The loaded JSZip archive is returned so the emitter can rezip the SAME
-        // archive (preserving styles/rels/etc.).
-        expect(doc.zip).toBeDefined();
-    });
+    // The loaded JSZip archive is returned so the emitter can rezip the SAME
+    // archive (preserving styles/rels/etc.).
+    expect(doc.zip).toBeDefined();
+  });
 
-    it("rejects a non-docx buffer (parse failure is fatal)", async () => {
-        // A buffer that is not a valid zip cannot be opened by JSZip (and has no
-        // `word/document.xml`), so `parseDocx` must reject per its contract.
-        await expect(
-            parseDocx(Buffer.from("this is not a zip")),
-        ).rejects.toThrow();
-    });
+  it("rejects a non-docx buffer (parse failure is fatal)", async () => {
+    // A buffer that is not a valid zip cannot be opened by JSZip (and has no
+    // `word/document.xml`), so `parseDocx` must reject per its contract.
+    await expect(
+      parseDocx(Buffer.from("this is not a zip")),
+    ).rejects.toThrow();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -200,16 +200,16 @@ describe("parseDocx: structural fields and fatal-parse behavior", () => {
 // ---------------------------------------------------------------------------
 
 describe("parseDocx: determinism", () => {
-    it("produces identical output for identical input", async () => {
-        const d1 = await parseDocx(load("identical.base.docx"));
-        const d2 = await parseDocx(load("identical.base.docx"));
+  it("produces identical output for identical input", async () => {
+    const d1 = await parseDocx(load("identical.base.docx"));
+    const d2 = await parseDocx(load("identical.base.docx"));
 
-        // Identical inputs must yield an identical ordered paragraph model and
-        // identical whole-document plaintext -- there is no AI or nondeterminism
-        // anywhere in the parse path.
-        expect(d1.paragraphs.map((p) => p.text)).toEqual(
-            d2.paragraphs.map((p) => p.text),
-        );
-        expect(d1.bodyPlainText).toBe(d2.bodyPlainText);
-    });
+    // Identical inputs must yield an identical ordered paragraph model and
+    // identical whole-document plaintext -- there is no AI or nondeterminism
+    // anywhere in the parse path.
+    expect(d1.paragraphs.map((p) => p.text)).toEqual(
+      d2.paragraphs.map((p) => p.text),
+    );
+    expect(d1.bodyPlainText).toBe(d2.bodyPlainText);
+  });
 });

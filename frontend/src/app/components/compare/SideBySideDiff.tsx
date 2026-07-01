@@ -10,7 +10,12 @@ interface Props {
 }
 
 export function SideBySideDiff({ diff }: Props) {
-    const hunks = diff?.hunks ?? [];
+    // Stable reference for the hunks array. A bare `diff?.hunks ?? []` fallback
+    // allocates a fresh `[]` on every render, changing identity each render and
+    // tripping react-hooks/exhaustive-deps on the `changedIndices` memo below
+    // (and defeating its memoization). Memoizing on `diff` keeps the reference
+    // stable until the comparison actually changes.
+    const hunks = useMemo(() => diff?.hunks ?? [], [diff]);
 
     // Indices (into `hunks`) of changed (del/ins) hunks, in document order.
     const changedIndices = useMemo(
@@ -22,6 +27,30 @@ export function SideBySideDiff({ diff }: Props) {
     );
 
     const [currentChange, setCurrentChange] = useState(0);
+
+    // Reset change navigation to the first change whenever a NEW diff arrives
+    // (e.g. the user runs a different comparison). Without this, a `currentChange`
+    // left over from a previous, larger comparison would point past the end of
+    // the new `changedIndices` and render invalid text like "Change 3 of 1".
+    // This is React's recommended "adjust state during render" pattern for
+    // resetting state in response to a prop change (no effect / extra frame).
+    const [seenDiff, setSeenDiff] = useState(diff);
+    if (seenDiff !== diff) {
+        setSeenDiff(diff);
+        setCurrentChange(0);
+    }
+
+    // Defensive clamp into [0, changedIndices.length - 1]: the indicator, the
+    // highlighted hunk, and the nav base always reference a VALID changed hunk
+    // for the current diff, even during a render where `currentChange` is
+    // momentarily out of range. Guarantees `currentHunkIdx` (below) is never
+    // undefined. When there are no changes the value is 0 (unused: the buttons
+    // are disabled and `currentHunkIdx` is -1).
+    const safeChange = Math.max(
+        0,
+        Math.min(currentChange, changedIndices.length - 1),
+    );
+
     // hunk-index -> rendered <span>, for scroll-into-view navigation.
     const hunkRefs = useRef<Record<number, HTMLSpanElement | null>>({});
 
@@ -47,7 +76,7 @@ export function SideBySideDiff({ diff }: Props) {
     }
 
     const hasChanges = changedIndices.length > 0;
-    const currentHunkIdx = hasChanges ? changedIndices[currentChange] : -1;
+    const currentHunkIdx = hasChanges ? changedIndices[safeChange] : -1;
 
     return (
         <div className="flex flex-1 flex-col overflow-hidden">
@@ -66,12 +95,12 @@ export function SideBySideDiff({ diff }: Props) {
                 <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-500">
                         {hasChanges
-                            ? `Change ${currentChange + 1} of ${changedIndices.length}`
+                            ? `Change ${safeChange + 1} of ${changedIndices.length}`
                             : "No changes"}
                     </span>
                     <button
                         type="button"
-                        onClick={() => goToChange(currentChange - 1)}
+                        onClick={() => goToChange(safeChange - 1)}
                         disabled={!hasChanges}
                         aria-label="Previous change"
                         className="rounded-md border border-gray-200 p-1 text-gray-600 transition-colors hover:bg-gray-100 disabled:opacity-40"
@@ -80,7 +109,7 @@ export function SideBySideDiff({ diff }: Props) {
                     </button>
                     <button
                         type="button"
-                        onClick={() => goToChange(currentChange + 1)}
+                        onClick={() => goToChange(safeChange + 1)}
                         disabled={!hasChanges}
                         aria-label="Next change"
                         className="rounded-md border border-gray-200 p-1 text-gray-600 transition-colors hover:bg-gray-100 disabled:opacity-40"

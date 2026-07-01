@@ -22,12 +22,12 @@
  */
 
 import {
-    type ParsedDocx,
-    type ParsedRun,
-    type XNode,
-    elName,
-    elChildren,
-    getTextContent,
+  type ParsedDocx,
+  type ParsedRun,
+  type XNode,
+  elName,
+  elChildren,
+  getTextContent,
 } from "./parseDocx";
 
 // ---------------------------------------------------------------------------
@@ -40,18 +40,18 @@ import {
  * plaintext. Produced 1:1 with `ParsedDocx.paragraphs`.
  */
 export interface NormalizedParagraph {
-    /**
-     * Accepted-view runs in document order. Each entry corresponds to a direct
-     * `<w:r>` of the paragraph or to a `<w:r>` unwrapped from an accepted
-     * `<w:ins>`; runs inside a discarded `<w:del>` are absent. Each run's `rPr`
-     * is the same `<w:rPr>` node reference carried by the parsed model.
-     */
-    runs: ParsedRun[];
-    /**
-     * Accepted-view plaintext of the paragraph: the concatenation of the run
-     * texts, with NO trailing newline (mirrors `ParsedParagraph.text`).
-     */
-    text: string;
+  /**
+   * Accepted-view runs in document order. Each entry corresponds to a direct
+   * `<w:r>` of the paragraph or to a `<w:r>` unwrapped from an accepted
+   * `<w:ins>`; runs inside a discarded `<w:del>` are absent. Each run's `rPr`
+   * is the same `<w:rPr>` node reference carried by the parsed model.
+   */
+  runs: ParsedRun[];
+  /**
+   * Accepted-view plaintext of the paragraph: the concatenation of the run
+   * texts, with NO trailing newline (mirrors `ParsedParagraph.text`).
+   */
+  text: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -67,20 +67,20 @@ export interface NormalizedParagraph {
  * across the engine.
  */
 function readRun(rNode: XNode): ParsedRun {
-    let rPr: XNode | null = null;
-    let text = "";
-    for (const child of elChildren(rNode)) {
-        const name = elName(child);
-        if (name === "w:rPr") {
-            // Run properties are carried by reference, as in the parsed model.
-            rPr = child;
-        } else if (name === "w:t") {
-            text += getTextContent(child);
-        }
-        // Other run children (including <w:delText>) contribute no accepted-view
-        // text and are intentionally skipped.
+  let rPr: XNode | null = null;
+  let text = "";
+  for (const child of elChildren(rNode)) {
+    const name = elName(child);
+    if (name === "w:rPr") {
+      // Run properties are carried by reference, as in the parsed model.
+      rPr = child;
+    } else if (name === "w:t") {
+      text += getTextContent(child);
     }
-    return { rPr, text };
+    // Other run children (including <w:delText>) contribute no accepted-view
+    // text and are intentionally skipped.
+  }
+  return { rPr, text };
 }
 
 // ---------------------------------------------------------------------------
@@ -111,40 +111,40 @@ function readRun(rNode: XNode): ParsedRun {
  * @returns one {@link NormalizedParagraph} per body paragraph, in order
  */
 export function normalizeParagraphs(doc: ParsedDocx): NormalizedParagraph[] {
-    const normalized: NormalizedParagraph[] = [];
+  const normalized: NormalizedParagraph[] = [];
 
-    for (const paragraph of doc.paragraphs) {
-        const runs: ParsedRun[] = [];
-        let text = "";
+  for (const paragraph of doc.paragraphs) {
+    const runs: ParsedRun[] = [];
+    let text = "";
 
-        for (const child of elChildren(paragraph.node)) {
-            const name = elName(child);
+    for (const child of elChildren(paragraph.node)) {
+      const name = elName(child);
 
-            if (name === "w:r") {
-                // Direct run: keep it as an accepted-view run.
-                const run = readRun(child);
-                runs.push(run);
-                text += run.text;
-            } else if (name === "w:ins") {
-                // Accepted insertion: unwrap the wrapper and include its inner
-                // <w:r> children as if they were normal runs.
-                for (const inner of elChildren(child)) {
-                    if (elName(inner) === "w:r") {
-                        const run = readRun(inner);
-                        runs.push(run);
-                        text += run.text;
-                    }
-                }
-            }
-            // "w:del": discarded entirely (its <w:delText> is excluded from the
-            // accepted view). All other elements contribute no text and are
-            // skipped here.
+      if (name === "w:r") {
+        // Direct run: keep it as an accepted-view run.
+        const run = readRun(child);
+        runs.push(run);
+        text += run.text;
+      } else if (name === "w:ins") {
+        // Accepted insertion: unwrap the wrapper and include its inner
+        // <w:r> children as if they were normal runs.
+        for (const inner of elChildren(child)) {
+          if (elName(inner) === "w:r") {
+            const run = readRun(inner);
+            runs.push(run);
+            text += run.text;
+          }
         }
-
-        normalized.push({ runs, text });
+      }
+      // "w:del": discarded entirely (its <w:delText> is excluded from the
+      // accepted view). All other elements contribute no text and are
+      // skipped here.
     }
 
-    return normalized;
+    normalized.push({ runs, text });
+  }
+
+  return normalized;
 }
 
 /**
@@ -157,7 +157,7 @@ export function normalizeParagraphs(doc: ParsedDocx): NormalizedParagraph[] {
  * @returns the accepted-view plaintext of the whole body
  */
 export function normalizedText(doc: ParsedDocx): string {
-    return normalizeParagraphs(doc)
-        .map((paragraph) => paragraph.text)
-        .join("\n");
+  return normalizeParagraphs(doc)
+    .map((paragraph) => paragraph.text)
+    .join("\n");
 }

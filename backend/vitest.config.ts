@@ -26,8 +26,14 @@ export default defineConfig({
     include: ["src/compare/**/*.test.ts"],
     // The compare engine runs in pure Node (no DOM), matching the Node 20+ runtime.
     environment: "node",
-    // Expose describe/it/expect as globals so the compare test files stay free of
-    // per-file test-framework imports.
-    globals: true,
+    // Vitest test-API globals are DISABLED (the Vitest default). This is a
+    // deliberate, self-enforcing choice, not merely a runtime preference: the
+    // main backend `tsc` build compiles `src/**/*` (which includes the compare
+    // `__tests__/*.test.ts` files) WITHOUT the `vitest/globals` ambient types,
+    // so every compare test MUST explicitly `import { describe, it, expect }
+    // from "vitest"` to keep `npm run build` green. Keeping `globals: false`
+    // here means Vitest also fails fast (not just `tsc`) if a future test omits
+    // those imports, so the config and the build enforce the SAME convention.
+    globals: false,
   },
 });
