@@ -1,0 +1,813 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document Compare / Redline &mdash; Executive Summary</title>
+
+  <!--
+    Single, self-contained reveal.js executive summary for Mike's Document
+    Compare / Redline feature. All CSS and JS live inline in this one file.
+    CDN versions are pinned exactly: reveal.js 5.1.0, Mermaid 11.4.0, Lucide 0.460.0.
+    No repo-local stylesheet or script is referenced.
+  -->
+
+  <!-- reveal.js 5.1.0 core stylesheets (pinned; no prebuilt theme is linked) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+
+  <!-- Fonts: Inter (body), Space Grotesk (headings), Fira Code (code) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=Fira+Code&display=swap" rel="stylesheet">
+
+  <style>
+    /* ============================================================
+       Blitzy brand design system (inline). All colors and fonts
+       resolve through these tokens; do not hardcode brand hex
+       elsewhere. The four brand colors are exact; the ink/muted/
+       surface/line values are derived from them for contrast.
+       ============================================================ */
+    :root{
+      /* Brand palette (exact) */
+      --blitzy-primary:#5B39F3;   /* primary violet */
+      --blitzy-deep:#2D1C77;      /* deep purple */
+      --blitzy-mint:#94FAD5;      /* mint accent */
+      --blitzy-navy:#1A105F;      /* dark navy base background */
+
+      /* Derived, brand-consistent extras */
+      --blitzy-ink:#F4F2FF;                       /* light text on dark */
+      --blitzy-muted:rgba(244,242,255,0.72);      /* secondary text */
+      --blitzy-faint:rgba(244,242,255,0.52);      /* tertiary text */
+      --blitzy-surface:rgba(244,242,255,0.06);    /* card fill */
+      --blitzy-surface-2:rgba(244,242,255,0.03);  /* subtle fill */
+      --blitzy-border:rgba(148,250,213,0.22);     /* mint-derived hairline */
+      --blitzy-glow:rgba(91,57,243,0.20);         /* violet-derived glow */
+
+      /* Typography */
+      --font-body:'Inter',system-ui,sans-serif;
+      --font-head:'Space Grotesk','Inter',sans-serif;
+      --font-code:'Fira Code',ui-monospace,monospace;
+
+      /* Radius scale */
+      --radius:16px;
+      --radius-sm:10px;
+      --radius-lg:22px;
+    }
+
+    /* ----- Deck base look ----- */
+    html{ background:var(--blitzy-navy); }
+    body{ background:var(--blitzy-navy); }
+
+    /* Blitzy gradient applied to the reveal viewport so every slide shares it */
+    .reveal-viewport,
+    .reveal{
+      background:linear-gradient(135deg, var(--blitzy-navy) 0%, var(--blitzy-deep) 100%);
+    }
+    /* Individual slides are transparent so the gradient shows through */
+    .reveal .slides section{ background:transparent; }
+
+    .reveal{
+      font-family:var(--font-body);
+      color:var(--blitzy-ink);
+      font-size:26px;
+      font-weight:400;
+    }
+    .reveal .slides{ text-align:left; }
+
+    .reveal h1,.reveal h2,.reveal h3,.reveal h4{
+      font-family:var(--font-head);
+      color:var(--blitzy-ink);
+      font-weight:700;
+      line-height:1.08;
+      letter-spacing:-0.01em;
+      text-transform:none;
+      margin:0 0 .38em;
+    }
+    .reveal h1{ font-size:2.05em; }
+    .reveal h2{ font-size:1.46em; }
+    .reveal h3{ font-size:1.02em; }
+    .reveal p{ color:var(--blitzy-muted); line-height:1.45; margin:.35em 0; }
+    .reveal li{ color:var(--blitzy-muted); line-height:1.4; margin:.22em 0; }
+    .reveal ul{ margin:.2em 0 .2em 1.05em; }
+    .reveal strong{ color:var(--blitzy-ink); font-weight:600; }
+    .reveal em{ color:var(--blitzy-mint); font-style:normal; font-weight:600; }
+    .reveal code{ font-family:var(--font-code); color:var(--blitzy-mint); font-size:.86em; }
+    .reveal pre{ font-family:var(--font-code); }
+    .reveal a{ color:var(--blitzy-mint); }
+
+    .lead{ font-size:1.02em; color:var(--blitzy-ink); max-width:34ch; }
+    .sub{ color:var(--blitzy-muted); }
+    .center{ text-align:center; }
+
+    /* Reveal chrome recolored to brand */
+    .reveal .slide-number{ background:transparent; color:var(--blitzy-faint); font-family:var(--font-code); }
+    .reveal .controls{ color:var(--blitzy-mint); }
+    .reveal .progress{ color:var(--blitzy-mint); height:4px; }
+    .reveal .progress span{ background:var(--blitzy-mint); }
+
+    /* ----- Slide-type classes ----- */
+    /* Cover */
+    .reveal .slides section.slide-title{
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      text-align:center; height:720px; padding:0 60px;
+    }
+    /* Divider / closing */
+    .reveal .slides section.slide-section{
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      text-align:center; height:720px; padding:0 60px;
+    }
+    /* Standard content */
+    .reveal .slides section.slide-content{ padding:26px 46px 40px; }
+    /* Diagram-centric */
+    .reveal .slides section.slide-diagram{ padding:20px 40px 30px; }
+
+    .slide-head{ margin-bottom:.35em; }
+    .slide-head .eyebrow{
+      font-family:var(--font-head); font-weight:600; font-size:.56em;
+      letter-spacing:.18em; text-transform:uppercase; color:var(--blitzy-mint);
+    }
+    .accent-bar{
+      width:66px; height:6px; border-radius:999px; margin:.28em 0 .7em;
+      background:linear-gradient(90deg, var(--blitzy-primary), var(--blitzy-mint));
+    }
+    .slide-section .accent-bar{ margin:.7em auto 0; width:120px; }
+
+    /* ----- Icon system (Lucide) ----- */
+    /* Lucide swaps <i data-lucide> for <svg class="lucide ...">; svgs use
+       stroke:currentColor, so CSS stroke below overrides it to brand mint. */
+    .reveal .lucide{
+      width:2rem; height:2rem; stroke:var(--blitzy-mint);
+      stroke-width:2; flex:none; vertical-align:middle;
+    }
+    .icon-xl .lucide,.lucide.icon-xl{ width:6rem; height:6rem; stroke-width:1.4; }
+    .icon-lg .lucide,.lucide.icon-lg{ width:3.1rem; height:3.1rem; stroke-width:1.6; }
+    .icon-chip{
+      display:inline-flex; align-items:center; justify-content:center;
+      width:60px; height:60px; border-radius:16px;
+      background:var(--blitzy-glow); border:1px solid var(--blitzy-border);
+    }
+    .on-mint .lucide{ stroke:var(--blitzy-navy); }
+
+    /* ----- Card grid ----- */
+    .grid{ display:grid; gap:20px; }
+    .grid.cols-2{ grid-template-columns:repeat(2,1fr); }
+    .grid.cols-3{ grid-template-columns:repeat(3,1fr); }
+    .grid.cols-4{ grid-template-columns:repeat(4,1fr); }
+    .grid.cols-5{ grid-template-columns:repeat(5,1fr); }
+    .card{
+      background:var(--blitzy-surface);
+      border:1px solid var(--blitzy-border);
+      border-radius:var(--radius);
+      padding:22px 20px; display:flex; flex-direction:column; gap:12px;
+    }
+    .card .card-title{ font-family:var(--font-head); color:var(--blitzy-ink); font-weight:600; font-size:.9em; }
+    .card p{ font-size:.72em; margin:0; color:var(--blitzy-muted); }
+
+    /* ----- Two-column layouts (scope, risks) ----- */
+    .two-col{ display:grid; grid-template-columns:1fr 1fr; gap:26px; align-items:start; }
+    .panel{
+      background:var(--blitzy-surface); border:1px solid var(--blitzy-border);
+      border-radius:var(--radius); padding:20px 22px;
+    }
+    .panel h3{ display:flex; align-items:center; gap:12px; margin-bottom:.4em; }
+    .panel ul{ margin:.2em 0 0 1.05em; }
+    .panel li{ font-size:.78em; }
+
+    /* Risk rows: risk on the left, mitigation on the right */
+    .risk-row{
+      display:grid; grid-template-columns:1fr 1fr; gap:18px; align-items:center;
+      padding:14px 0; border-top:1px solid var(--blitzy-border);
+    }
+    .risk-row:first-of-type{ border-top:none; }
+    .risk-cell{ display:flex; gap:12px; align-items:flex-start; }
+    .risk-cell p{ font-size:.74em; margin:0; }
+    .risk-cell.mitigation .lucide{ stroke:var(--blitzy-mint); }
+    .risk-cell.risk .lucide{ stroke:var(--blitzy-primary); }
+
+    /* ----- Pills & badges ----- */
+    .pill{
+      display:inline-flex; align-items:center; gap:8px; padding:6px 14px;
+      border-radius:999px; font-family:var(--font-head); font-weight:600;
+      font-size:.6em; letter-spacing:.02em;
+    }
+    .pill-mint{ background:var(--blitzy-mint); color:var(--blitzy-navy); }
+    .pill-outline{ background:var(--blitzy-surface); border:1px solid var(--blitzy-border); color:var(--blitzy-ink); }
+    .badge{
+      display:inline-flex; align-items:center; gap:12px;
+      background:var(--blitzy-mint); color:var(--blitzy-navy);
+      font-family:var(--font-head); font-weight:700; font-size:.82em;
+      padding:12px 20px; border-radius:14px;
+    }
+    .badge .lucide{ stroke:var(--blitzy-navy); }
+
+    /* ----- Step strip (user flow) ----- */
+    .steps{ display:flex; align-items:stretch; gap:6px; justify-content:center; flex-wrap:wrap; margin-top:14px; }
+    .step{
+      display:flex; flex-direction:column; align-items:center; gap:10px;
+      background:var(--blitzy-surface); border:1px solid var(--blitzy-border);
+      border-radius:var(--radius); padding:18px 20px; min-width:168px; text-align:center;
+    }
+    .step .step-n{ font-family:var(--font-head); font-size:.62em; color:var(--blitzy-mint); letter-spacing:.12em; }
+    .step .step-label{ font-size:.74em; color:var(--blitzy-ink); font-weight:500; }
+    .step-arrow{ display:flex; align-items:center; }
+    .step-arrow .lucide{ stroke:var(--blitzy-primary); width:1.7rem; height:1.7rem; }
+
+    /* ----- Wireframe mock (Compare tab UI) ----- */
+    .mock{
+      background:var(--blitzy-surface-2); border:1px solid var(--blitzy-border);
+      border-radius:var(--radius-lg); overflow:hidden; margin-top:8px;
+      box-shadow:0 24px 60px rgba(0,0,0,0.35);
+    }
+    .mock-bar{
+      display:flex; align-items:center; gap:8px; padding:11px 16px;
+      background:rgba(26,16,95,0.7); border-bottom:1px solid var(--blitzy-border);
+    }
+    .dot{ width:11px; height:11px; border-radius:50%; background:var(--blitzy-primary); opacity:.75; }
+    .mock-tabs{ display:flex; gap:6px; margin-left:16px; }
+    .mock-tab{ font-family:var(--font-head); font-size:.56em; padding:5px 12px; border-radius:8px; color:var(--blitzy-muted); }
+    .mock-tab.active{ background:var(--blitzy-primary); color:var(--blitzy-ink); display:inline-flex; align-items:center; gap:7px; }
+    .mock-tab.active .lucide{ width:1rem; height:1rem; stroke:var(--blitzy-ink); }
+    .mock-body{ padding:22px; display:flex; flex-direction:column; gap:16px; }
+    .mock-row{ display:flex; gap:16px; align-items:center; }
+    .select{
+      flex:1; display:flex; align-items:center; justify-content:space-between;
+      padding:12px 15px; border-radius:var(--radius-sm); border:1px solid var(--blitzy-border);
+      background:var(--blitzy-navy); font-size:.66em; color:var(--blitzy-muted); font-family:var(--font-body);
+    }
+    .select .lucide{ width:1.1rem; height:1.1rem; stroke:var(--blitzy-faint); }
+    .select .select-label{ color:var(--blitzy-faint); }
+    .btn{
+      display:inline-flex; align-items:center; gap:8px; padding:12px 18px;
+      border-radius:var(--radius-sm); font-family:var(--font-head); font-weight:600; font-size:.66em;
+      border:1px solid transparent; white-space:nowrap;
+    }
+    .btn .lucide{ width:1.1rem; height:1.1rem; }
+    .btn-primary{ background:var(--blitzy-primary); color:var(--blitzy-ink); }
+    .btn-primary .lucide{ stroke:var(--blitzy-ink); }
+    .btn-ghost{ background:transparent; border-color:var(--blitzy-border); color:var(--blitzy-ink); }
+    .btn-ghost .lucide{ stroke:var(--blitzy-mint); }
+    .two-pane{ display:grid; grid-template-columns:1fr 1fr; gap:12px; height:154px; }
+    .pane{
+      border:1px dashed var(--blitzy-border); border-radius:var(--radius-sm);
+      padding:12px; font-size:.58em; color:var(--blitzy-faint); background:var(--blitzy-surface-2);
+    }
+    .pane .pane-title{ color:var(--blitzy-mint); font-family:var(--font-head); font-size:1.05em; margin-bottom:6px; }
+    .ins-chip{ color:var(--blitzy-mint); }
+    .del-chip{ color:var(--blitzy-muted); text-decoration:line-through; }
+
+    /* ----- Mermaid diagram fit ----- */
+    /* reveal.css hides sections (display:none) until reveal.js adds the
+       ".ready" class on init. Because Mermaid renders BEFORE Reveal.initialize
+       (see the runtime script), the diagram containers would otherwise have
+       zero width and collapse when useMaxWidth is on. Keep sections laid out
+       (measurable width) only while reveal is not yet ready, so Mermaid sizes
+       the diagrams correctly; reveal takes over the moment it is ready. */
+    .reveal:not(.ready) .slides > section{ display:block !important; }
+    .reveal .mermaid{ display:flex; justify-content:center; line-height:normal; margin:6px 0 0; }
+    /* min-width:0 lets a wide diagram (e.g. the sequence diagram, whose
+       intrinsic width exceeds the slide) shrink to the container instead of
+       overflowing: as a flex item the svg's default min-width:auto would
+       otherwise floor it at its intrinsic width and clip the right edge. */
+    .reveal .mermaid svg{ max-width:100%; min-width:0; height:auto; max-height:590px; }
+    .reveal section.slide-diagram .mermaid svg{ max-height:560px; }
+    .diagram-caption{
+      text-align:center; color:var(--blitzy-mint); font-family:var(--font-head);
+      font-weight:600; font-size:.72em; margin-top:12px;
+    }
+
+    /* ----- Legend (NEW vs reused) ----- */
+    .legend{ display:flex; gap:22px; justify-content:center; font-size:.6em; color:var(--blitzy-muted); margin-top:10px; }
+    .legend .swatch{ display:inline-block; width:14px; height:14px; border-radius:4px; margin-right:7px; vertical-align:middle; }
+    .swatch-new{ background:var(--blitzy-mint); }
+    .swatch-reuse{ background:var(--blitzy-primary); }
+
+    /* ----- Determinism strip ----- */
+    .det-strip{ display:flex; align-items:center; justify-content:center; gap:18px; margin-top:16px; flex-wrap:wrap; }
+    .det-node{
+      display:flex; flex-direction:column; align-items:center; gap:8px;
+      background:var(--blitzy-surface); border:1px solid var(--blitzy-border);
+      border-radius:var(--radius); padding:18px 22px; min-width:150px;
+    }
+    .det-node .det-cap{ font-size:.66em; color:var(--blitzy-muted); }
+    .det-eq{ font-family:var(--font-head); font-size:1.6em; color:var(--blitzy-mint); }
+
+    /* ----- Doc reference rows (onboarding) ----- */
+    .doc-list{ display:flex; flex-direction:column; gap:12px; margin-top:6px; }
+    .doc-item{
+      display:flex; align-items:center; gap:14px; padding:14px 18px;
+      background:var(--blitzy-surface); border:1px solid var(--blitzy-border); border-radius:var(--radius);
+    }
+    .doc-item .doc-meta{ display:flex; flex-direction:column; gap:2px; }
+    .doc-item code{ font-size:.78em; }
+    .doc-item .doc-desc{ font-size:.68em; color:var(--blitzy-muted); }
+    .next-tasks{ margin-top:16px; display:flex; gap:10px; flex-wrap:wrap; }
+
+    /* ----- Cover wordmark ----- */
+    .wordmark{
+      font-family:var(--font-head); font-weight:600; letter-spacing:.34em;
+      text-transform:uppercase; font-size:.5em; color:var(--blitzy-faint); margin-top:28px;
+    }
+
+    /* Utility spacing */
+    .mt-s{ margin-top:10px; } .mt-m{ margin-top:18px; } .mt-l{ margin-top:26px; }
+    .row-inline{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  </style>
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+      <!-- ============================ Slide 1 — Cover ============================ -->
+      <section class="slide-title">
+        <span class="icon-xl"><i data-lucide="git-compare"></i></span>
+        <h1 class="mt-m">Document Compare / Redline</h1>
+        <p class="lead">Deterministic, in-house contract redlining &mdash; no AI in the diff.</p>
+        <div class="wordmark">Mike &middot; Legal Document Assistant</div>
+      </section>
+
+      <!-- ============================ Slide 2 — The Problem ============================ -->
+      <section class="slide-content">
+        <div class="slide-head">
+          <div class="eyebrow">The problem</div>
+          <h2>Comparing contracts by hand is slow and risky</h2>
+          <div class="accent-bar"></div>
+        </div>
+        <p class="sub">Reviewers need a redline they can trust &mdash; produced quickly, and without sending confidential documents to an outside AI model.</p>
+        <div class="grid cols-3 mt-m">
+          <div class="card">
+            <span class="icon-chip"><i data-lucide="clock"></i></span>
+            <div class="card-title">Slow</div>
+            <p>Reading two versions line by line takes hours that senior reviewers do not have.</p>
+          </div>
+          <div class="card">
+            <span class="icon-chip"><i data-lucide="alert-triangle"></i></span>
+            <div class="card-title">Error-prone</div>
+            <p>Manual comparison misses subtle edits &mdash; exactly the changes that carry the most risk.</p>
+          </div>
+          <div class="card">
+            <span class="icon-chip"><i data-lucide="lock"></i></span>
+            <div class="card-title">Confidential</div>
+            <p>Client documents should not be handed to a third-party model just to spot differences.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================ Slide 3 — What We Built ============================ -->
+      <section class="slide-diagram">
+        <div class="slide-head center">
+          <div class="eyebrow">What we built</div>
+          <h2>Two versions in, two trusted results out</h2>
+        </div>
+        <pre class="mermaid">
+flowchart LR
+A["Base .docx"] --> E["Compare Engine"]
+B["Revised .docx"] --> E
+E --> R["Redline .docx<br/>Word tracked changes"]
+E --> J["Structured diff<br/>in-app view"]
+</pre>
+        <p class="diagram-caption">A downloadable Word redline, plus an in-app view of every change.</p>
+      </section>
+
+      <!-- ============================ Slide 4 — Business Value ============================ -->
+      <section class="slide-content">
+        <div class="slide-head">
+          <div class="eyebrow">Why it matters</div>
+          <h2>Faster reviews, fewer surprises, no new vendors</h2>
+          <div class="accent-bar"></div>
+        </div>
+        <div class="grid cols-5 mt-m">
+          <div class="card">
+            <span class="icon-chip"><i data-lucide="gauge"></i></span>
+            <div class="card-title">Faster</div>
+            <p>Redlines in seconds instead of a manual read-through.</p>
+          </div>
+          <div class="card">
+            <span class="icon-chip"><i data-lucide="target"></i></span>
+            <div class="card-title">Accurate</div>
+            <p>Every change is captured, not just the obvious ones.</p>
+          </div>
+          <div class="card">
+            <span class="icon-chip"><i data-lucide="scale"></i></span>
+            <div class="card-title">Auditable</div>
+            <p>Repeatable results support review and sign-off.</p>
+          </div>
+          <div class="card">
+            <span class="icon-chip"><i data-lucide="recycle"></i></span>
+            <div class="card-title">Reuses infra</div>
+            <p>Built on the systems we already run.</p>
+          </div>
+          <div class="card">
+            <span class="icon-chip"><i data-lucide="wallet"></i></span>
+            <div class="card-title">No new cost</div>
+            <p>No new vendor, storage, or runtime to pay for.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================ Slide 5 — User Flow A ============================ -->
+      <section class="slide-content">
+        <div class="slide-head">
+          <div class="eyebrow">User flow A</div>
+          <h2>Compare two documents inside a project</h2>
+          <div class="accent-bar"></div>
+        </div>
+        <p class="sub">Pick the two versions, run the comparison, review it, and download the redline.</p>
+        <div class="steps mt-m">
+          <div class="step">
+            <span class="icon-chip"><i data-lucide="folder-open"></i></span>
+            <div class="step-n">STEP 1</div>
+            <div class="step-label">Pick base &amp; revised</div>
+          </div>
+          <div class="step-arrow"><i data-lucide="chevron-right"></i></div>
+          <div class="step">
+            <span class="icon-chip"><i data-lucide="mouse-pointer-click"></i></span>
+            <div class="step-n">STEP 2</div>
+            <div class="step-label">Run Compare</div>
+          </div>
+          <div class="step-arrow"><i data-lucide="chevron-right"></i></div>
+          <div class="step">
+            <span class="icon-chip"><i data-lucide="eye"></i></span>
+            <div class="step-n">STEP 3</div>
+            <div class="step-label">Review inline &amp; side-by-side</div>
+          </div>
+          <div class="step-arrow"><i data-lucide="chevron-right"></i></div>
+          <div class="step">
+            <span class="icon-chip"><i data-lucide="download"></i></span>
+            <div class="step-n">STEP 4</div>
+            <div class="step-label">Download the redline</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================ Slide 6 — User Flow B ============================ -->
+      <section class="slide-content">
+        <div class="slide-head">
+          <div class="eyebrow">User flow B</div>
+          <h2>Compare a new upload against the prior version</h2>
+          <div class="accent-bar"></div>
+        </div>
+        <p class="sub">Upload a newer version of a document you already have, and compare it against what came before.</p>
+        <div class="steps mt-m">
+          <div class="step">
+            <span class="icon-chip"><i data-lucide="upload"></i></span>
+            <div class="step-n">STEP 1</div>
+            <div class="step-label">Upload the revised version</div>
+          </div>
+          <div class="step-arrow"><i data-lucide="chevron-right"></i></div>
+          <div class="step">
+            <span class="icon-chip"><i data-lucide="history"></i></span>
+            <div class="step-n">STEP 2</div>
+            <div class="step-label">Select the prior version</div>
+          </div>
+          <div class="step-arrow"><i data-lucide="chevron-right"></i></div>
+          <div class="step">
+            <span class="icon-chip"><i data-lucide="git-compare"></i></span>
+            <div class="step-n">STEP 3</div>
+            <div class="step-label">Compare &amp; download</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================ Slide 7 — The Compare Tab (UI) ============================ -->
+      <section class="slide-content">
+        <div class="slide-head">
+          <div class="eyebrow">In the product</div>
+          <h2>A new Compare tab in the project workspace</h2>
+          <div class="accent-bar"></div>
+        </div>
+        <div class="mock">
+          <div class="mock-bar">
+            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+            <div class="mock-tabs">
+              <span class="mock-tab">Documents</span>
+              <span class="mock-tab">Assistant</span>
+              <span class="mock-tab active"><i data-lucide="git-compare"></i>Compare</span>
+            </div>
+          </div>
+          <div class="mock-body">
+            <div class="mock-row">
+              <div class="select"><span class="select-label">Base version</span><i data-lucide="chevron-down"></i></div>
+              <div class="select"><span class="select-label">Revised version</span><i data-lucide="chevron-down"></i></div>
+              <span class="btn btn-primary"><i data-lucide="circle-play"></i>Run</span>
+              <span class="pill pill-mint">Complete</span>
+            </div>
+            <div class="mock-row">
+              <span class="btn btn-ghost"><i data-lucide="columns-2"></i>Inline / Side-by-side</span>
+              <span class="btn btn-ghost"><i data-lucide="download"></i>Download redline</span>
+            </div>
+            <div class="two-pane">
+              <div class="pane">
+                <div class="pane-title">Base</div>
+                This Agreement is made as of <span class="del-chip">2025</span> between the parties&hellip;
+              </div>
+              <div class="pane">
+                <div class="pane-title">Revised</div>
+                This Agreement is made as of <span class="ins-chip">2026</span> between the parties&hellip;
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================ Slide 8 — Architecture Overview ============================ -->
+      <section class="slide-diagram">
+        <div class="slide-head center">
+          <div class="eyebrow">Architecture</div>
+          <h2>New pieces, built on reused infrastructure</h2>
+        </div>
+        <pre class="mermaid">
+flowchart TB
+subgraph FE["Frontend — Compare tab (new)"]
+UI["Compare view:<br/>pickers, Run, status, results"]
+end
+subgraph BE["Backend API"]
+R["comparisonsRouter<br/>(NEW)"]
+AUTH["Authentication<br/>(reused)"]
+ACC["Project &amp; document<br/>access checks (reused)"]
+end
+subgraph ENGINE["Compare engine — isolated module (NEW)"]
+ENG["Deterministic diff +<br/>Word tracked-changes builder"]
+end
+subgraph INFRA["Existing infrastructure (reused, unmodified)"]
+STORE["Document storage<br/>(R2 / S3)"]
+DBS["Supabase / Postgres"]
+LO["LibreOffice render check"]
+end
+DBT["document_comparisons<br/>(NEW table)"]
+UI --> R
+R --> AUTH --> ACC
+ACC --> ENG
+ENG --> STORE
+ENG --> LO
+R --> DBT
+DBT --- DBS
+</pre>
+        <div class="legend">
+          <span><span class="swatch swatch-new"></span>New for this feature</span>
+          <span><span class="swatch swatch-reuse"></span>Reused, unmodified</span>
+        </div>
+      </section>
+
+      <!-- ============================ Slide 9 — Data Flow ============================ -->
+      <section class="slide-diagram">
+        <div class="slide-head center">
+          <div class="eyebrow">Data flow</div>
+          <h2>One comparison, end to end</h2>
+        </div>
+        <pre class="mermaid">
+sequenceDiagram
+autonumber
+participant U as Compare tab
+participant API as comparisonsRouter
+participant ACC as Access checks
+participant ST as Document storage
+participant ENG as Compare engine
+participant DB as document_comparisons
+U->>API: Start compare (base + revised)
+API->>ACC: Verify project &amp; document access
+ACC->>ST: Fetch base + revised .docx
+ST-->>ENG: Document bytes
+ENG->>ENG: Compute redline (synchronous, no AI)
+ENG->>ST: Save redline.docx + diff.json
+ENG->>DB: Mark status complete
+U->>API: Poll status
+API-->>U: Status + diff when ready
+U->>API: Download redline
+API-->>U: Stream .docx (self-contained)
+</pre>
+      </section>
+
+      <!-- ============================ Slide 10 — How the Diff Works ============================ -->
+      <section class="slide-diagram">
+        <div class="slide-head center">
+          <div class="eyebrow">Under the hood</div>
+          <h2>A fixed, predictable pipeline &mdash; no AI</h2>
+        </div>
+        <pre class="mermaid">
+flowchart LR
+P["Read .docx"] --> N["Accept-all<br/>normalize"] --> AL["Align<br/>paragraphs"] --> WD["Word-level<br/>diff"] --> EM["Emit Word<br/>tracked changes"] --> V["Validate"]
+</pre>
+        <p class="diagram-caption">Same inputs always produce the same redline.</p>
+      </section>
+
+      <!-- ============================ Slide 11 — Determinism = Trust ============================ -->
+      <section class="slide-content">
+        <div class="slide-head">
+          <div class="eyebrow">Determinism</div>
+          <h2>Repeatable results you can stand behind</h2>
+          <div class="accent-bar"></div>
+        </div>
+        <p class="sub">The same two documents always produce the same redline &mdash; important for legal review, sign-off, and auditability.</p>
+        <div class="grid cols-3 mt-m">
+          <div class="card">
+            <span class="icon-chip"><i data-lucide="fingerprint"></i></span>
+            <div class="card-title">Identical every time</div>
+            <p>The same inputs yield a byte-for-byte identical result.</p>
+          </div>
+          <div class="card">
+            <span class="icon-chip"><i data-lucide="lock"></i></span>
+            <div class="card-title">No AI, no guesswork</div>
+            <p>The comparison is a fixed procedure, not a model prediction.</p>
+          </div>
+          <div class="card">
+            <span class="icon-chip"><i data-lucide="check-check"></i></span>
+            <div class="card-title">Easy to verify</div>
+            <p>Re-run any comparison and confirm the same output.</p>
+          </div>
+        </div>
+        <div class="det-strip">
+          <div class="det-node"><i data-lucide="files"></i><span class="det-cap">Same inputs</span></div>
+          <span class="det-eq">=</span>
+          <div class="det-node"><i data-lucide="file-check-2"></i><span class="det-cap">Same output, every time</span></div>
+        </div>
+      </section>
+
+      <!-- ============================ Slide 12 — Built on What We Already Have ============================ -->
+      <section class="slide-content">
+        <div class="slide-head">
+          <div class="eyebrow">Reuse over rebuild</div>
+          <h2>Built on the systems we already run</h2>
+          <div class="accent-bar"></div>
+        </div>
+        <p class="sub">Storage, database, authentication, and document rendering are all reused &mdash; nothing new to operate.</p>
+        <div class="grid cols-4 mt-m">
+          <div class="card">
+            <span class="icon-chip"><i data-lucide="database"></i></span>
+            <div class="card-title">Same database</div>
+            <p>Existing service client and Postgres.</p>
+          </div>
+          <div class="card">
+            <span class="icon-chip"><i data-lucide="cloud"></i></span>
+            <div class="card-title">Same storage</div>
+            <p>Existing object storage bucket.</p>
+          </div>
+          <div class="card">
+            <span class="icon-chip"><i data-lucide="shield-check"></i></span>
+            <div class="card-title">Same sign-in</div>
+            <p>Existing authentication and access checks.</p>
+          </div>
+          <div class="card">
+            <span class="icon-chip"><i data-lucide="file-check"></i></span>
+            <div class="card-title">Same render check</div>
+            <p>Existing LibreOffice validation step.</p>
+          </div>
+        </div>
+        <div class="row-inline mt-l center" style="justify-content:center;">
+          <span class="badge"><i data-lucide="package-plus"></i>Exactly 1 new dev dependency</span>
+          <span class="pill pill-outline">A test runner &mdash; nothing added to production</span>
+        </div>
+      </section>
+
+      <!-- ============================ Slide 13 — Scope (V1) ============================ -->
+      <section class="slide-content">
+        <div class="slide-head">
+          <div class="eyebrow">Scope</div>
+          <h2>What the first version does &mdash; and does not</h2>
+          <div class="accent-bar"></div>
+        </div>
+        <div class="two-col mt-s">
+          <div class="panel">
+            <h3><span class="on-mint icon-chip" style="background:var(--blitzy-mint);"><i data-lucide="circle-check"></i></span>In scope now</h3>
+            <ul>
+              <li>Compare a Word document against another Word document.</li>
+              <li>Produce a native Word tracked-changes redline.</li>
+              <li>Show a structured, in-app view of every change.</li>
+              <li>Inline and side-by-side review, plus download.</li>
+            </ul>
+          </div>
+          <div class="panel">
+            <h3><span class="icon-chip"><i data-lucide="circle-x"></i></span>Planned for later</h3>
+            <ul>
+              <li>Detecting moved text as a move (not delete plus insert).</li>
+              <li>Tracking formatting-only changes.</li>
+              <li>Comments, footnotes, images, headers, and footers.</li>
+              <li>Legacy Word and PDF inputs; three-way merge; AI suggestions.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================ Slide 14 — Risks & Mitigations ============================ -->
+      <section class="slide-content">
+        <div class="slide-head">
+          <div class="eyebrow">Risks &amp; mitigations</div>
+          <h2>Known trade-offs, with a plan for each</h2>
+          <div class="accent-bar"></div>
+        </div>
+        <div class="mt-s">
+          <div class="risk-row">
+            <div class="risk-cell risk"><i data-lucide="alert-triangle"></i><p>Very large documents take longer, because the first version does the work while the user waits.</p></div>
+            <div class="risk-cell mitigation"><i data-lucide="shield-check"></i><p>The design is already ready for a background worker as a fast-follow.</p></div>
+          </div>
+          <div class="risk-row">
+            <div class="risk-cell risk"><i data-lucide="alert-triangle"></i><p>Only Word documents are supported; other file types could confuse users.</p></div>
+            <div class="risk-cell mitigation"><i data-lucide="shield-check"></i><p>Unsupported files are rejected up front with a clear message.</p></div>
+          </div>
+          <div class="risk-row">
+            <div class="risk-cell risk"><i data-lucide="alert-triangle"></i><p>The redline must open cleanly in both Microsoft Word and Google Docs.</p></div>
+            <div class="risk-cell mitigation"><i data-lucide="shield-check"></i><p>Each result is re-checked automatically, with an optional render test.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================ Slide 15 — Onboarding & Continuation ============================ -->
+      <section class="slide-content">
+        <div class="slide-head">
+          <div class="eyebrow">Onboarding &amp; continuation</div>
+          <h2>Where to go next</h2>
+          <div class="accent-bar"></div>
+        </div>
+        <div class="doc-list">
+          <div class="doc-item">
+            <span class="icon-chip"><i data-lucide="book-open"></i></span>
+            <div class="doc-meta"><code>README.md</code><span class="doc-desc">Setup, environment, and how to use the Compare tab.</span></div>
+          </div>
+          <div class="doc-item">
+            <span class="icon-chip"><i data-lucide="file-text"></i></span>
+            <div class="doc-meta"><code>docs/document-compare.md</code><span class="doc-desc">Engineering reference for the compare engine and API.</span></div>
+          </div>
+          <div class="doc-item">
+            <span class="icon-chip"><i data-lucide="clipboard-list"></i></span>
+            <div class="doc-meta"><code>docs/decisions/document-compare-decision-log.md</code><span class="doc-desc">The rationale behind each decision.</span></div>
+          </div>
+        </div>
+        <div class="next-tasks">
+          <span class="pill pill-outline"><i data-lucide="rocket"></i>Next: move detection</span>
+          <span class="pill pill-outline">Formatting-change tracking</span>
+          <span class="pill pill-outline">Background worker</span>
+          <span class="pill pill-outline">Word &amp; PDF conversion</span>
+        </div>
+      </section>
+
+      <!-- ============================ Slide 16 — Closing ============================ -->
+      <section class="slide-section">
+        <span class="icon-xl"><i data-lucide="circle-check"></i></span>
+        <h2 class="mt-m">A reliable, deterministic, in-house redline &mdash;<br>built on what we already run.</h2>
+        <div class="accent-bar"></div>
+        <div class="wordmark">Mike &middot; Document Compare</div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       Runtime init (order is critical):
+       1) reveal.js UMD (global Reveal)  2) Lucide UMD (global lucide)
+       3) ESM module: mermaid.initialize -> mermaid.run ->
+          lucide.createIcons -> Reveal.initialize
+       Mermaid is rendered BEFORE Reveal transforms the slides, so
+       diagram labels are laid out while sections are in normal flow.
+       ============================================================ -->
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.0/dist/mermaid.esm.min.mjs';
+
+    // 1) Theme + initialize Mermaid (do NOT auto-run on load)
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'base',
+      themeVariables: {
+        fontFamily: 'Inter, sans-serif',
+        primaryColor: '#2D1C77',
+        primaryTextColor: '#F4F2FF',
+        primaryBorderColor: '#5B39F3',
+        lineColor: '#5B39F3',
+        secondaryColor: '#94FAD5',
+        tertiaryColor: '#1A105F',
+        // sequence-diagram specifics
+        actorBkg: '#2D1C77',
+        actorTextColor: '#F4F2FF',
+        actorBorder: '#5B39F3',
+        actorLineColor: '#5B39F3',
+        signalColor: '#94FAD5',
+        signalTextColor: '#F4F2FF',
+        noteBkgColor: '#94FAD5',
+        noteTextColor: '#1A105F'
+      },
+      flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' },
+      sequence: { useMaxWidth: true },
+      securityLevel: 'loose'   // required because htmlLabels/<br/> are used
+    });
+
+    // 2) Render all <pre class="mermaid"> blocks to SVG (before Reveal transforms slides)
+    await mermaid.run({ querySelector: '.mermaid' });
+
+    // 3) Swap all <i data-lucide="…"> placeholders to inline SVG
+    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+      window.lucide.createIcons();
+    }
+
+    // 4) Initialize reveal.js LAST
+    Reveal.initialize({
+      hash: true,
+      slideNumber: 'c/t',
+      controls: true,
+      progress: true,
+      center: false,
+      width: 1280,
+      height: 760,
+      margin: 0.06
+    });
+  </script>
+</body>
+</html>
