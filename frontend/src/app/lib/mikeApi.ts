@@ -7,6 +7,8 @@ import { supabase } from "@/lib/supabase";
 import type {
     AssistantEvent,
     Chat,
+    Comparison,
+    CreateComparisonInput,
     ChatDetailOut,
     CitationAnnotation,
     Document,
@@ -1212,4 +1214,31 @@ export async function deleteWorkflowShare(
     await apiRequest(`/workflows/${workflowId}/shares/${shareId}`, {
         method: "DELETE",
     });
+}
+
+// Document compare: create a comparison (synchronous V1 compute server-side).
+// `payload` may optionally carry `baseVersionId` / `revisedVersionId` to compare
+// two explicit versions of the SAME document (flow (b)); when omitted the
+// backend uses each document's active version (flow (a)).
+export async function createComparison(
+    projectId: string,
+    payload: CreateComparisonInput,
+): Promise<Comparison> {
+    return apiRequest<Comparison>(`/projects/${projectId}/comparisons`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+}
+
+// Document compare: poll comparison status/result.
+export async function getComparison(id: string): Promise<Comparison> {
+    return apiRequest<Comparison>(`/comparisons/${id}`);
+}
+
+// Document compare: fetch the redline .docx (self-contained download route).
+export async function downloadComparisonRedline(
+    id: string,
+): Promise<{ blob: Blob; filename: string | null }> {
+    return apiBlobRequest(`/comparisons/${id}/download`);
 }

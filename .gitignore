@@ -17,3 +17,8 @@ next-env.d.ts
 .DS_Store
 .vercel
 coverage
+
+# Blitzy agent working artifacts (screenshots, screen recordings, scratch output).
+# These are local validation/debugging outputs, never product deliverables, so
+# they must never be committed to the repository.
+blitzy/

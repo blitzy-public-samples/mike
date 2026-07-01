@@ -20,7 +20,8 @@ import { RowActions } from "@/app/components/shared/RowActions";
 import { HeaderActionsMenu } from "@/app/components/shared/HeaderActionsMenu";
 import { TABLE_PRIMARY_CELL_WIDTH_CLASS } from "@/app/components/shared/TablePrimitive";
 
-export type ProjectWorkspaceSection = "documents" | "assistant" | "reviews";
+// Document compare: adds the "compare" workspace section.
+export type ProjectWorkspaceSection = "documents" | "assistant" | "reviews" | "compare";
 
 export type ProjectContextMenu = {
     x: number;
