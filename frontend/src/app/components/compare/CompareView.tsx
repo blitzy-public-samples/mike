@@ -414,9 +414,11 @@ export function CompareView() {
 
     return (
         <div className="flex-1 flex flex-col min-h-0 gap-4 p-4">
-            {/* Entry-flow mode toggle */}
+            {/* Entry-flow mode toggle. flex-wrap so the two mode buttons wrap
+                rather than overflowing the viewport at narrow (<= 375px) widths
+                (QA FIN-C Issue 2). */}
             <div
-                className="flex items-center gap-1"
+                className="flex flex-wrap items-center gap-1"
                 role="group"
                 aria-label="Comparison mode"
             >
@@ -564,7 +566,10 @@ export function CompareView() {
             {/* Result panel */}
             {isComplete && comparison && (
                 <div className="flex flex-1 flex-col min-h-0 overflow-hidden rounded-lg border border-border">
-                    <div className="flex items-center justify-between border-b border-border px-3 py-2">
+                    {/* flex-wrap + gap-2 lets the Download button wrap below the
+                        view toggles instead of being clipped by the parent's
+                        overflow-hidden at narrow (<= 375px) widths (QA FIN-C Issue 2). */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
                         <div className="flex items-center gap-1">
                             <Button
                                 variant={view === "inline" ? "default" : "ghost"}

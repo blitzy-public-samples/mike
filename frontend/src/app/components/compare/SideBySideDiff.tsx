@@ -83,20 +83,19 @@ export function SideBySideDiff({ diff }: Props) {
         <div className="flex flex-1 flex-col overflow-hidden">
             {/* Change-navigation toolbar */}
             <div className="flex items-center justify-between border-b border-border px-4 py-2">
-                {/* Legend. Deleted = destructive (red) token; inserted = brand
-                    azure token. Blue-for-inserted (rather than green) matches the
-                    design system's palette — which has no green/success token —
-                    and is more distinguishable for red-green color vision
-                    deficiency. Non-color cues (line-through / underline) are
-                    added on the diff spans below so state never relies on color
-                    alone. */}
+                {/* Legend. Base/deleted = red, Revised/inserted = green — the
+                    same colour signal the inline redline view uses, so a change
+                    reads identically across both views. Non-color cues
+                    (line-through / underline) accompany the diff spans below so
+                    state never relies on colour alone. Rationale + WCAG-AA shade
+                    choice: decision log D11. */}
                 <div className="flex items-center gap-4 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1.5">
-                        <span className="inline-block h-2 w-2 rounded-full bg-destructive" />
+                        <span className="inline-block h-2 w-2 rounded-full bg-red-600" />
                         Base
                     </span>
                     <span className="flex items-center gap-1.5">
-                        <span className="inline-block h-2 w-2 rounded-full bg-blue-600" />
+                        <span className="inline-block h-2 w-2 rounded-full bg-green-600" />
                         Revised
                     </span>
                 </div>
@@ -150,9 +149,9 @@ export function SideBySideDiff({ diff }: Props) {
                                             hunkRefs.current[i] = el;
                                         }}
                                         className={cn(
-                                            "rounded-sm bg-destructive/10 text-destructive line-through",
+                                            "rounded-sm bg-red-50 text-red-700 line-through",
                                             currentHunkIdx === i &&
-                                                "ring-2 ring-destructive/50",
+                                                "ring-2 ring-red-600/50",
                                         )}
                                     >
                                         {h.text}
@@ -180,9 +179,9 @@ export function SideBySideDiff({ diff }: Props) {
                                             hunkRefs.current[i] = el;
                                         }}
                                         className={cn(
-                                            "rounded-sm bg-blue-50 text-blue-700 underline",
+                                            "rounded-sm bg-green-50 text-green-700 underline",
                                             currentHunkIdx === i &&
-                                                "ring-2 ring-blue-200",
+                                                "ring-2 ring-green-600/50",
                                         )}
                                     >
                                         {h.text}
