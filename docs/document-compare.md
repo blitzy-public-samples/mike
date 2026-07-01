@@ -251,6 +251,11 @@ create table public.document_comparisons (
   project_id           uuid not null references public.projects(id)  on delete cascade,
   base_document_id     uuid not null references public.documents(id) on delete cascade,
   revised_document_id  uuid not null references public.documents(id) on delete cascade,
+  -- Optional resolved versions that were compared (nullable): records exactly
+  -- which document_versions rows were diffed for both the pick-two-documents
+  -- flow and the prior-version flow (two versions of the same document).
+  base_version_id      uuid references public.document_versions(id) on delete set null,
+  revised_version_id   uuid references public.document_versions(id) on delete set null,
   created_by           text,
   status               text not null default 'pending'
                          check (status in ('pending', 'processing', 'complete', 'error')),
@@ -338,6 +343,8 @@ successful `201` response:
   "project_id": "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
   "base_document_id": "0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0",
   "revised_document_id": "9e8d7c6b-5a49-3827-1605-f4e3d2c1b0a9",
+  "base_version_id": "2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e",
+  "revised_version_id": "3c4d5e6f-7a8b-4c9d-0e1f-2a3b4c5d6e7f",
   "created_by": "user_2abcXYZ",
   "status": "complete",
   "redline_storage_path": "comparisons/user_2abcXYZ/b6f1e2a0-9c3d-4e8a-b1f2-3c4d5e6f7a8b/redline.docx",
@@ -366,6 +373,8 @@ running:
   "project_id": "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
   "base_document_id": "0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0",
   "revised_document_id": "9e8d7c6b-5a49-3827-1605-f4e3d2c1b0a9",
+  "base_version_id": "2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e",
+  "revised_version_id": "3c4d5e6f-7a8b-4c9d-0e1f-2a3b4c5d6e7f",
   "created_by": "user_2abcXYZ",
   "status": "processing",
   "redline_storage_path": null,
@@ -385,6 +394,8 @@ JSON under `diff`:
   "project_id": "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
   "base_document_id": "0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0",
   "revised_document_id": "9e8d7c6b-5a49-3827-1605-f4e3d2c1b0a9",
+  "base_version_id": "2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e",
+  "revised_version_id": "3c4d5e6f-7a8b-4c9d-0e1f-2a3b4c5d6e7f",
   "created_by": "user_2abcXYZ",
   "status": "complete",
   "redline_storage_path": "comparisons/user_2abcXYZ/b6f1e2a0-9c3d-4e8a-b1f2-3c4d5e6f7a8b/redline.docx",

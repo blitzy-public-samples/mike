@@ -34,9 +34,9 @@ For a new Supabase database, open the Supabase SQL editor and run:
 
 The schema file is for fresh deployments and already includes the latest database shape.
 
-For an existing database, do not run the full schema file over production data. Instead, apply the incremental files in `backend/migrations/`: run the migrations dated **after** the version of Mike you currently have deployed, in filename order. Each file is named `YYYYMMDD_<name>.sql` (the date is also recorded in a comment at the top of the file) and is written to be safe to re-run, so when unsure you can re-apply the most recent migrations without harm.
+For an existing database, do not run the full schema file over production data. Instead, apply the incremental files in `backend/migrations/`: run the migrations dated **after** the version of Mike you currently have deployed, in filename order. Each file is named `YYYYMMDD_<name>.sql` — optionally with a two-digit sequence number when several migrations share a date, as in `YYYYMMDD_NN_<name>.sql` (the date is also recorded in a comment at the top of the file) — and is written to be safe to re-run, so when unsure you can re-apply the most recent migrations without harm.
 
-The Document Compare feature adds a single `document_comparisons` table. Fresh databases already include it via `backend/schema.sql`; existing deployments apply the new dated migration in `backend/migrations/` (named `YYYYMMDD_document_comparisons.sql`).
+The Document Compare feature adds a single `document_comparisons` table. Fresh databases already include it via `backend/schema.sql`; existing deployments apply the new dated migration `backend/migrations/20260616_01_document_comparisons.sql`.
 
 ## Environment
 
@@ -121,7 +121,7 @@ The diff is **deterministic**: there is no AI in the diff path, and the engine u
 - Engine: `backend/src/compare/`
 - Routes: `backend/src/routes/comparisons.ts`
 - Persistence: `backend/src/lib/documentComparisons.ts`
-- Table: `document_comparisons` (fresh databases via `backend/schema.sql`; existing databases via the dated migration in `backend/migrations/`)
+- Table: `document_comparisons` (fresh databases via `backend/schema.sql`; existing databases via the dated migration `backend/migrations/20260616_01_document_comparisons.sql`)
 - Frontend views: `frontend/src/app/components/compare/`, reached via the project **Compare** tab
 
 ### Endpoints
