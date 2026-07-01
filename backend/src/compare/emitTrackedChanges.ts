@@ -713,11 +713,18 @@ export async function emitTrackedChanges(input: EmitInput): Promise<Buffer> {
   // embeds cannot drift between runs (see AAP 0.8.1 / decision log).
   const zip = base.zip;
   const fixedDate = new Date(date);
-  // Normalize every entry's date for deterministic output.
-  zip.forEach((_path, file) => {
-    if (!file.dir) file.date = fixedDate;
-  });
+  // Write the merged document.xml FIRST: adding it makes JSZip materialize any
+  // missing parent-folder entry (e.g. `word/`) as a side effect, so that folder
+  // must exist before we normalize timestamps below.
   writeDocumentXml(zip, xml, fixedDate);
+  // Normalize EVERY entry's date -- INCLUDING directory entries -- for
+  // deterministic output. A prior `if (!file.dir)` guard skipped directories,
+  // leaving the implicit `word/` folder (materialized by the add above with
+  // `new Date()`) stamped with the wall clock; that made the redline bytes drift
+  // between otherwise-identical runs, violating the byte-determinism mandate.
+  zip.forEach((_path, file) => {
+    file.date = fixedDate;
+  });
 
   const out = await zip.generateAsync({
     type: "nodebuffer",
