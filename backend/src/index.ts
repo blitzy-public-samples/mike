@@ -12,6 +12,8 @@ import { workflowsRouter } from "./routes/workflows";
 import { userRouter } from "./routes/user";
 import { downloadsRouter } from "./routes/downloads";
 import { caseLawRouter } from "./routes/caseLaw";
+// Document compare: isolated redline engine router (create/status/download).
+import { comparisonsRouter } from "./routes/comparisons";
 
 const app = express();
 const PORT = process.env.PORT ?? 3001;
@@ -84,6 +86,23 @@ const dataDeleteLimiter = makeLimiter({
   message: "Too many data deletion requests. Please try again later.",
 });
 
+// Document compare: the compare run is EXPENSIVE (parses two .docx, runs the
+// deterministic diff, emits a redline, and optionally renders via LibreOffice),
+// so throttle it like uploads/exports. The redline download is a cheap read,
+// so it gets a more generous throttle. Both use OPTIONAL env knobs with
+// sensible defaults — no new required secrets.
+const compareLimiter = makeLimiter({
+  windowMs: hours(envInt("RATE_LIMIT_COMPARE_WINDOW_HOURS", 1)),
+  max: envInt("RATE_LIMIT_COMPARE_MAX", 20),
+  message: "Too many comparison requests. Please try again later.",
+});
+
+const downloadLimiter = makeLimiter({
+  windowMs: minutes(envInt("RATE_LIMIT_DOWNLOAD_WINDOW_MINUTES", 15)),
+  max: envInt("RATE_LIMIT_DOWNLOAD_MAX", 100),
+  message: "Too many download requests. Please try again later.",
+});
+
 function jsonLimitForPath(path: string): string {
   return "50mb";
 }
@@ -141,6 +160,10 @@ app.delete("/user/chats", dataDeleteLimiter);
 app.delete("/user/projects", dataDeleteLimiter);
 app.delete("/user/tabular-reviews", dataDeleteLimiter);
 
+// Document compare: throttle the expensive compare run and the redline download.
+app.post("/projects/:projectId/comparisons", compareLimiter);
+app.get("/comparisons/:id/download", downloadLimiter);
+
 app.use((req, res, next) =>
   express.json({ limit: jsonLimitForPath(req.path) })(req, res, next),
 );
@@ -155,6 +178,13 @@ app.use("/user", userRouter);
 app.use("/users", userRouter);
 app.use("/download", downloadsRouter);
 app.use("/case-law", caseLawRouter);
+// Document compare: comparisonsRouter defines ABSOLUTE paths spanning two
+// route families — project-scoped `POST /projects/:projectId/comparisons` and
+// top-level `GET /comparisons/:id` and `GET /comparisons/:id/download`. A single
+// base-path mount (like projectChatRouter at "/projects/:projectId/chat") cannot
+// serve both families, so mount at the app root. requireAuth is applied per
+// route inside the router (matching downloads.ts), so all paths stay protected.
+app.use("/", comparisonsRouter);
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
