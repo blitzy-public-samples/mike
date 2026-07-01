@@ -113,7 +113,9 @@ export function ProjectWorkspaceProvider({
     const [projectLoading, setProjectLoading] = useState(true);
     const [searchBySection, setSearchBySection] = useState<
         Record<ProjectWorkspaceSection, string>
-    >({ documents: "", assistant: "", reviews: "" });
+        // Document compare: include the "compare" key so this record stays
+        // exhaustive for the ProjectWorkspaceSection union.
+    >({ documents: "", assistant: "", reviews: "", compare: "" });
     const [projectChats, setProjectChats] = useState<Chat[] | null>(null);
     const [projectReviews, setProjectReviews] = useState<
         TabularReview[] | null

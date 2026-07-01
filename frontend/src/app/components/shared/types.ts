@@ -469,3 +469,38 @@ export interface TabularReviewDetailOut {
   cells: TabularCell[];
   documents: Document[];
 }
+
+// Document comparison (redline)
+
+export type ComparisonStatus = "pending" | "processing" | "complete" | "error";
+
+export interface DiffRange {
+  start: number; // inclusive char offset
+  end: number;   // exclusive char offset
+}
+
+export interface DiffHunk {
+  type: "ins" | "del" | "equal";
+  text: string;
+  baseRange: DiffRange | null;    // null for pure insertions (type "ins")
+  revisedRange: DiffRange | null; // null for pure deletions (type "del")
+}
+
+export interface DiffJson {
+  hunks: DiffHunk[];
+}
+
+export interface Comparison {
+  id: string;
+  project_id: string;
+  base_document_id: string;
+  revised_document_id: string;
+  created_by: string | null;
+  status: ComparisonStatus;
+  redline_storage_path: string | null;
+  diff_storage_path: string | null;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+  diff?: DiffJson; // present on GET when status === "complete"
+}
